@@ -1,0 +1,21 @@
+# Garmin Connect IQ / MonkeyC
+bin/
+gen/
+internal-mir/
+mir/
+optimized/
+.idea/
+.settings/
+.classpath
+.project
+*.prg
+*.prg.debug.xml
+
+# Generated files
+bin/gen/
+bin/internal-mir/
+bin/mir/
+bin/optimized/
+
+# VS Code
+.vscode/
