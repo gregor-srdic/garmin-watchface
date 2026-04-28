@@ -2,16 +2,13 @@
 <resources>
     <!-- Launcher icon -->
     <bitmap id="LauncherIcon" filename="../images/launcher_icon.png"/>
-
     <!-- Arc metric icons -->
     <bitmap id="IconHR" filename="../images/hr.png"/>
     <bitmap id="IconStress" filename="../images/stress.png"/>
     <bitmap id="IconBody" filename="../images/body.png"/>
     <bitmap id="IconKcal" filename="../images/calories.png"/>
-
     <!-- Time digits — one bitmap per (position, glyph) so each is pre-tinted.
          Positions: h1 (orange), h2 (rose), colon (purple), m1 (purple), m2 (blue) -->
-
     <bitmap id="DigitH1_0" filename="../images/h1_0.png"/>
     <bitmap id="DigitH1_1" filename="../images/h1_1.png"/>
     <bitmap id="DigitH1_2" filename="../images/h1_2.png"/>
@@ -22,7 +19,6 @@
     <bitmap id="DigitH1_7" filename="../images/h1_7.png"/>
     <bitmap id="DigitH1_8" filename="../images/h1_8.png"/>
     <bitmap id="DigitH1_9" filename="../images/h1_9.png"/>
-
     <bitmap id="DigitH2_0" filename="../images/h2_0.png"/>
     <bitmap id="DigitH2_1" filename="../images/h2_1.png"/>
     <bitmap id="DigitH2_2" filename="../images/h2_2.png"/>
@@ -33,9 +29,7 @@
     <bitmap id="DigitH2_7" filename="../images/h2_7.png"/>
     <bitmap id="DigitH2_8" filename="../images/h2_8.png"/>
     <bitmap id="DigitH2_9" filename="../images/h2_9.png"/>
-
     <bitmap id="DigitColon" filename="../images/colon_colon.png"/>
-
     <bitmap id="DigitM1_0" filename="../images/m1_0.png"/>
     <bitmap id="DigitM1_1" filename="../images/m1_1.png"/>
     <bitmap id="DigitM1_2" filename="../images/m1_2.png"/>
@@ -46,7 +40,6 @@
     <bitmap id="DigitM1_7" filename="../images/m1_7.png"/>
     <bitmap id="DigitM1_8" filename="../images/m1_8.png"/>
     <bitmap id="DigitM1_9" filename="../images/m1_9.png"/>
-
     <bitmap id="DigitM2_0" filename="../images/m2_0.png"/>
     <bitmap id="DigitM2_1" filename="../images/m2_1.png"/>
     <bitmap id="DigitM2_2" filename="../images/m2_2.png"/>
