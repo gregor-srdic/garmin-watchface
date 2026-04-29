@@ -2,6 +2,17 @@
 <resources>
     <!-- Launcher icon -->
     <bitmap id="LauncherIcon" filename="../images/launcher_icon.png"/>
+    <!-- Weather condition icons -->
+    <bitmap id="WeatherSun"         filename="../images/weather_sun.png"/>
+    <bitmap id="WeatherCloud"       filename="../images/weather_cloud.png"/>
+    <bitmap id="WeatherFog"         filename="../images/weather_fog.png"/>
+    <bitmap id="WeatherHail"        filename="../images/weather_hail.png"/>
+    <bitmap id="WeatherRain"        filename="../images/weather_rain.png"/>
+    <bitmap id="WeatherSnow"        filename="../images/weather_snow.png"/>
+    <bitmap id="WeatherTornado"     filename="../images/weather_tornado.png"/>
+    <bitmap id="WeatherThunderstorm" filename="../images/weather_thunderstorm.png"/>
+    <bitmap id="WeatherWind"        filename="../images/weather_wind.png"/>
+    <bitmap id="WeatherIce"         filename="../images/weather_ice.png"/>
     <!-- Arc metric icons -->
     <bitmap id="IconHR" filename="../images/hr.png"/>
     <bitmap id="IconStress" filename="../images/stress.png"/>

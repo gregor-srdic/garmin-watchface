@@ -236,125 +236,98 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         return t.toNumber();
     }
 
-    // Maps a Weather condition code to a unicode icon, or "" if unknown.
+    // Maps a Weather condition code to a drawable resource ID, or null if unknown.
     function readWeatherIcon() {
         if (!(Toybox has :Weather) || !(Weather has :getCurrentConditions)) {
-            return "";
+            return null;
         }
         var cur = Weather.getCurrentConditions();
         if (cur == null || cur.condition == null) {
-            return "";
+            return null;
         }
 
         var c = cur.condition;
-        if (c == Weather.CONDITION_CLEAR) {
-            return "☀"; // 0
-        } else if (c == Weather.CONDITION_PARTLY_CLOUDY) {
-            return "🌤"; // 1
-        } else if (c == Weather.CONDITION_MOSTLY_CLOUDY) {
-            return "🌥"; // 2
-        } else if (c == Weather.CONDITION_RAIN) {
-            return "🌧"; // 3
-        } else if (c == Weather.CONDITION_SNOW) {
-            return "❄"; // 4
-        } else if (c == Weather.CONDITION_WINDY) {
-            return "🌪"; // 5
-        } else if (c == Weather.CONDITION_THUNDERSTORMS) {
-            return "⛈"; // 6
-        } else if (c == Weather.CONDITION_WINTRY_MIX) {
-            return "🌨"; // 7
-        } else if (c == Weather.CONDITION_FOG) {
-            return "🌫"; // 8
-        } else if (c == Weather.CONDITION_HAZY) {
-            return "🌫"; // 9
+
+        if (
+            c == Weather.CONDITION_CLEAR ||
+            c == Weather.CONDITION_FAIR ||
+            c == Weather.CONDITION_MOSTLY_CLEAR ||
+            c == Weather.CONDITION_PARTLY_CLEAR ||
+            c == Weather.CONDITION_THIN_CLOUDS
+        ) {
+            return Rez.Drawables.WeatherSun;
+        } else if (
+            c == Weather.CONDITION_CLOUDY ||
+            c == Weather.CONDITION_MOSTLY_CLOUDY ||
+            c == Weather.CONDITION_PARTLY_CLOUDY
+        ) {
+            return Rez.Drawables.WeatherCloud;
+        } else if (
+            c == Weather.CONDITION_FOG ||
+            c == Weather.CONDITION_HAZY ||
+            c == Weather.CONDITION_HAZE ||
+            c == Weather.CONDITION_MIST ||
+            c == Weather.CONDITION_DRIZZLE ||
+            c == Weather.CONDITION_SMOKE ||
+            c == Weather.CONDITION_DUST ||
+            c == Weather.CONDITION_SAND ||
+            c == Weather.CONDITION_SANDSTORM ||
+            c == Weather.CONDITION_VOLCANIC_ASH
+        ) {
+            return Rez.Drawables.WeatherFog;
         } else if (c == Weather.CONDITION_HAIL) {
-            return "🌨"; // 10
-        } else if (c == Weather.CONDITION_SCATTERED_SHOWERS) {
-            return "🌦"; // 11
-        } else if (c == Weather.CONDITION_SCATTERED_THUNDERSTORMS) {
-            return "⛈"; // 12
-        } else if (c == Weather.CONDITION_UNKNOWN_PRECIPITATION) {
-            return "🌧"; // 13
-        } else if (c == Weather.CONDITION_LIGHT_RAIN) {
-            return "🌦"; // 14
-        } else if (c == Weather.CONDITION_HEAVY_RAIN) {
-            return "🌧"; // 15
-        } else if (c == Weather.CONDITION_LIGHT_SNOW) {
-            return "🌨"; // 16
-        } else if (c == Weather.CONDITION_HEAVY_SNOW) {
-            return "❄"; // 17
-        } else if (c == Weather.CONDITION_LIGHT_RAIN_SNOW) {
-            return "🌨"; // 18
-        } else if (c == Weather.CONDITION_HEAVY_RAIN_SNOW) {
-            return "🌨"; // 19
-        } else if (c == Weather.CONDITION_CLOUDY) {
-            return "☁"; // 20
-        } else if (c == Weather.CONDITION_RAIN_SNOW) {
-            return "🌨"; // 21
-        } else if (c == Weather.CONDITION_PARTLY_CLEAR) {
-            return "🌤"; // 22
-        } else if (c == Weather.CONDITION_MOSTLY_CLEAR) {
-            return "🌤"; // 23
-        } else if (c == Weather.CONDITION_LIGHT_SHOWERS) {
-            return "🌦"; // 24
-        } else if (c == Weather.CONDITION_SHOWERS) {
-            return "🌧"; // 25
-        } else if (c == Weather.CONDITION_HEAVY_SHOWERS) {
-            return "🌧"; // 26
-        } else if (c == Weather.CONDITION_CHANCE_OF_SHOWERS) {
-            return "🌦"; // 27
-        } else if (c == Weather.CONDITION_CHANCE_OF_THUNDERSTORMS) {
-            return "⛈"; // 28
-        } else if (c == Weather.CONDITION_MIST) {
-            return "🌫"; // 29
-        } else if (c == Weather.CONDITION_DUST) {
-            return "🌪"; // 30
-        } else if (c == Weather.CONDITION_DRIZZLE) {
-            return "🌦"; // 31
+            return Rez.Drawables.WeatherHail;
+        } else if (
+            c == Weather.CONDITION_RAIN ||
+            c == Weather.CONDITION_LIGHT_RAIN ||
+            c == Weather.CONDITION_HEAVY_RAIN ||
+            c == Weather.CONDITION_SCATTERED_SHOWERS ||
+            c == Weather.CONDITION_SHOWERS ||
+            c == Weather.CONDITION_LIGHT_SHOWERS ||
+            c == Weather.CONDITION_HEAVY_SHOWERS ||
+            c == Weather.CONDITION_CHANCE_OF_SHOWERS ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN ||
+            c == Weather.CONDITION_FREEZING_RAIN ||
+            c == Weather.CONDITION_UNKNOWN_PRECIPITATION
+        ) {
+            return Rez.Drawables.WeatherRain;
+        } else if (
+            c == Weather.CONDITION_SNOW ||
+            c == Weather.CONDITION_LIGHT_SNOW ||
+            c == Weather.CONDITION_HEAVY_SNOW ||
+            c == Weather.CONDITION_WINTRY_MIX ||
+            c == Weather.CONDITION_LIGHT_RAIN_SNOW ||
+            c == Weather.CONDITION_HEAVY_RAIN_SNOW ||
+            c == Weather.CONDITION_RAIN_SNOW ||
+            c == Weather.CONDITION_CHANCE_OF_SNOW ||
+            c == Weather.CONDITION_CHANCE_OF_RAIN_SNOW ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_SNOW ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW ||
+            c == Weather.CONDITION_FLURRIES ||
+            c == Weather.CONDITION_SLEET ||
+            c == Weather.CONDITION_ICE_SNOW
+        ) {
+            return Rez.Drawables.WeatherSnow;
         } else if (c == Weather.CONDITION_TORNADO) {
-            return "🌪"; // 32
-        } else if (c == Weather.CONDITION_SMOKE) {
-            return "🌫"; // 33
+            return Rez.Drawables.WeatherTornado;
+        } else if (
+            c == Weather.CONDITION_THUNDERSTORMS ||
+            c == Weather.CONDITION_SCATTERED_THUNDERSTORMS ||
+            c == Weather.CONDITION_CHANCE_OF_THUNDERSTORMS ||
+            c == Weather.CONDITION_HURRICANE ||
+            c == Weather.CONDITION_TROPICAL_STORM
+        ) {
+            return Rez.Drawables.WeatherThunderstorm;
+        } else if (
+            c == Weather.CONDITION_SQUALL ||
+            c == Weather.CONDITION_WINDY
+        ) {
+            return Rez.Drawables.WeatherWind;
         } else if (c == Weather.CONDITION_ICE) {
-            return "❄"; // 34
-        } else if (c == Weather.CONDITION_SAND) {
-            return "🌪"; // 35
-        } else if (c == Weather.CONDITION_SQUALL) {
-            return "🌫"; // 36
-        } else if (c == Weather.CONDITION_SANDSTORM) {
-            return "🌪"; // 37
-        } else if (c == Weather.CONDITION_VOLCANIC_ASH) {
-            return "🌫"; // 38
-        } else if (c == Weather.CONDITION_HAZE) {
-            return "🌫"; // 39
-        } else if (c == Weather.CONDITION_FAIR) {
-            return "🌤"; // 40
-        } else if (c == Weather.CONDITION_HURRICANE) {
-            return "⛈"; // 41
-        } else if (c == Weather.CONDITION_TROPICAL_STORM) {
-            return "⛈"; // 42
-        } else if (c == Weather.CONDITION_CHANCE_OF_SNOW) {
-            return "🌨"; // 43
-        } else if (c == Weather.CONDITION_CHANCE_OF_RAIN_SNOW) {
-            return "🌨"; // 44
-        } else if (c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN) {
-            return "🌦"; // 45
-        } else if (c == Weather.CONDITION_CLOUDY_CHANCE_OF_SNOW) {
-            return "🌨"; // 46
-        } else if (c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW) {
-            return "🌨"; // 47
-        } else if (c == Weather.CONDITION_FLURRIES) {
-            return "🌨"; // 48
-        } else if (c == Weather.CONDITION_FREEZING_RAIN) {
-            return "🌧"; // 49
-        } else if (c == Weather.CONDITION_SLEET) {
-            return "🌨"; // 50
-        } else if (c == Weather.CONDITION_ICE_SNOW) {
-            return "❄"; // 51
-        } else if (c == Weather.CONDITION_THIN_CLOUDS) {
-            return "🌤"; // 52
+            return Rez.Drawables.WeatherIce;
         }
-        return ""; // CONDITION_UNKNOWN (53) or any future code
+
+        return null;
     }
 
     // ── Arcs ──────────────────────────────────────────────────────────────────
@@ -533,20 +506,25 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         if (temp != null) {
             font = Gfx.FONT_XTINY;
             fontH = Gfx.getFontHeight(font);
-            var iconStr = readWeatherIcon();
+            var iconSize = fontH;
+            var gap = (4 * scale).toNumber();
+            var iconRes = readWeatherIcon();
             var tempStr = temp.toString() + "°";
-            var iconW = dc.getTextWidthInPixels(iconStr, font);
             var tempW = dc.getTextWidthInPixels(tempStr, font);
-            var x = cx - (iconW + tempW) / 2;
             var weatherY = cy + timeRenderH / 2 + segmentHeight / 2;
-            dc.drawText(x, weatherY, font, iconStr, Gfx.TEXT_JUSTIFY_LEFT);
-            dc.drawText(
-                x + iconW,
-                weatherY,
-                font,
-                tempStr,
-                Gfx.TEXT_JUSTIFY_LEFT
-            );
+
+            var totalW = tempW;
+            if (iconRes != null) {
+                totalW += iconSize + gap;
+            }
+            var x = cx - totalW / 2;
+
+            if (iconRes != null) {
+                var icon = WatchUi.loadResource(iconRes);
+                drawScaledBitmap(dc, icon, x, weatherY, iconSize, iconSize);
+                x += iconSize + gap;
+            }
+            dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
         }
     }
 

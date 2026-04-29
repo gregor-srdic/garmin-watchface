@@ -19,3 +19,4 @@ bin/optimized/
 
 # VS Code
 .vscode/
+.claude/
