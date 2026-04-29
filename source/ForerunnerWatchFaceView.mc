@@ -5,10 +5,9 @@ using Toybox.System;
 using Toybox.Time;
 using Toybox.Time.Gregorian;
 using Toybox.WatchUi;
-using Toybox.ActivityMonitor;
-using Toybox.SensorHistory;
-using Toybox.UserProfile;
 using Toybox.Weather;
+using Toybox.ActivityMonitor;
+using Toybox.Complications;
 
 // Forerunner Watch Face — round AMOLED, 454×454
 // Layout: 4 arc gauges around the bezel + bitmap time digits + date/weather row
@@ -21,11 +20,11 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     private const COLOR_DIM = 0x8a8a8a;
     private const COLOR_DIVIDER = 0x444444;
 
-    // Arc accent colors (one per metric)
-    private const COLOR_HR = 0xff4d4d;
-    private const COLOR_STRESS = 0xffa040;
-    private const COLOR_BODY = 0x4a9eff;
-    private const COLOR_KCAL = 0xff7da3;
+    // Arc accent colors — fixed per position, independent of complication type
+    private const COLOR_ARC_0 = 0xffa040; // top-right
+    private const COLOR_ARC_1 = 0xff7da3; // bottom-right
+    private const COLOR_ARC_2 = 0x4a9eff; // bottom-left
+    private const COLOR_ARC_3 = 0xff4d4d; // top-left
 
     // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -38,74 +37,115 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     private var labelRadius;
     private var scale;
 
-    // ── Sensor state ──────────────────────────────────────────────────────────
-
-    // Last-known valid readings — survive transient sensor dropouts
-    private var _lastHr = 0;
-    private var _lastStress = 0;
-    private var _lastBody = 0;
-
     // ── Digit resources ───────────────────────────────────────────────────────
 
-    // Lookup tables cached here to avoid re-allocating 40 arrays on every frame
-    private var _digitsH1;
-    private var _digitsH2;
-    private var _digitsM1;
-    private var _digitsM2;
+    private var _digitsH1 as Lang.Array<Lang.ResourceId>;
+    private var _digitsH2 as Lang.Array<Lang.ResourceId>;
+    private var _digitsM1 as Lang.Array<Lang.ResourceId>;
+    private var _digitsM2 as Lang.Array<Lang.ResourceId>;
+
+    // ── Complication slot IDs ─────────────────────────────────────────────────
+
+    private var _compIds as Lang.Array<Complications.Id>?;
+    private var _tempCompId as Complications.Id?;
+    private var _weatherCompId as Complications.Id?;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     function initialize() {
         WatchFace.initialize();
 
-        _digitsH1 = [
-            Rez.Drawables.DigitH1_0,
-            Rez.Drawables.DigitH1_1,
-            Rez.Drawables.DigitH1_2,
-            Rez.Drawables.DigitH1_3,
-            Rez.Drawables.DigitH1_4,
-            Rez.Drawables.DigitH1_5,
-            Rez.Drawables.DigitH1_6,
-            Rez.Drawables.DigitH1_7,
-            Rez.Drawables.DigitH1_8,
-            Rez.Drawables.DigitH1_9,
-        ];
-        _digitsH2 = [
-            Rez.Drawables.DigitH2_0,
-            Rez.Drawables.DigitH2_1,
-            Rez.Drawables.DigitH2_2,
-            Rez.Drawables.DigitH2_3,
-            Rez.Drawables.DigitH2_4,
-            Rez.Drawables.DigitH2_5,
-            Rez.Drawables.DigitH2_6,
-            Rez.Drawables.DigitH2_7,
-            Rez.Drawables.DigitH2_8,
-            Rez.Drawables.DigitH2_9,
-        ];
-        _digitsM1 = [
-            Rez.Drawables.DigitM1_0,
-            Rez.Drawables.DigitM1_1,
-            Rez.Drawables.DigitM1_2,
-            Rez.Drawables.DigitM1_3,
-            Rez.Drawables.DigitM1_4,
-            Rez.Drawables.DigitM1_5,
-            Rez.Drawables.DigitM1_6,
-            Rez.Drawables.DigitM1_7,
-            Rez.Drawables.DigitM1_8,
-            Rez.Drawables.DigitM1_9,
-        ];
-        _digitsM2 = [
-            Rez.Drawables.DigitM2_0,
-            Rez.Drawables.DigitM2_1,
-            Rez.Drawables.DigitM2_2,
-            Rez.Drawables.DigitM2_3,
-            Rez.Drawables.DigitM2_4,
-            Rez.Drawables.DigitM2_5,
-            Rez.Drawables.DigitM2_6,
-            Rez.Drawables.DigitM2_7,
-            Rez.Drawables.DigitM2_8,
-            Rez.Drawables.DigitM2_9,
-        ];
+        _digitsH1 =
+            [
+                Rez.Drawables.DigitH1_0,
+                Rez.Drawables.DigitH1_1,
+                Rez.Drawables.DigitH1_2,
+                Rez.Drawables.DigitH1_3,
+                Rez.Drawables.DigitH1_4,
+                Rez.Drawables.DigitH1_5,
+                Rez.Drawables.DigitH1_6,
+                Rez.Drawables.DigitH1_7,
+                Rez.Drawables.DigitH1_8,
+                Rez.Drawables.DigitH1_9,
+            ] as Lang.Array<Lang.ResourceId>;
+        _digitsH2 =
+            [
+                Rez.Drawables.DigitH2_0,
+                Rez.Drawables.DigitH2_1,
+                Rez.Drawables.DigitH2_2,
+                Rez.Drawables.DigitH2_3,
+                Rez.Drawables.DigitH2_4,
+                Rez.Drawables.DigitH2_5,
+                Rez.Drawables.DigitH2_6,
+                Rez.Drawables.DigitH2_7,
+                Rez.Drawables.DigitH2_8,
+                Rez.Drawables.DigitH2_9,
+            ] as Lang.Array<Lang.ResourceId>;
+        _digitsM1 =
+            [
+                Rez.Drawables.DigitM1_0,
+                Rez.Drawables.DigitM1_1,
+                Rez.Drawables.DigitM1_2,
+                Rez.Drawables.DigitM1_3,
+                Rez.Drawables.DigitM1_4,
+                Rez.Drawables.DigitM1_5,
+                Rez.Drawables.DigitM1_6,
+                Rez.Drawables.DigitM1_7,
+                Rez.Drawables.DigitM1_8,
+                Rez.Drawables.DigitM1_9,
+            ] as Lang.Array<Lang.ResourceId>;
+        _digitsM2 =
+            [
+                Rez.Drawables.DigitM2_0,
+                Rez.Drawables.DigitM2_1,
+                Rez.Drawables.DigitM2_2,
+                Rez.Drawables.DigitM2_3,
+                Rez.Drawables.DigitM2_4,
+                Rez.Drawables.DigitM2_5,
+                Rez.Drawables.DigitM2_6,
+                Rez.Drawables.DigitM2_7,
+                Rez.Drawables.DigitM2_8,
+                Rez.Drawables.DigitM2_9,
+            ] as Lang.Array<Lang.ResourceId>;
+
+        // Allocate 4 complication slot IDs (0–3). Users assign a data field to each
+        // slot via the Garmin Connect watch face settings. Slots map to arc positions:
+        // 0=top-right, 1=bottom-right, 2=bottom-left, 3=top-left.
+        // Guard required: Complications is unsupported on older simulators/firmware.
+        _compIds = null;
+        _tempCompId = null;
+        _weatherCompId = null;
+        if (Toybox has :Complications) {
+            _compIds = new Lang.Array<Complications.Id>[4];
+            _compIds[0] = new Complications.Id(
+                Complications.COMPLICATION_TYPE_STRESS
+            );
+            _compIds[1] = new Complications.Id(
+                Complications.COMPLICATION_TYPE_CALORIES
+            );
+            _compIds[2] = new Complications.Id(
+                Complications.COMPLICATION_TYPE_BODY_BATTERY
+            );
+            _compIds[3] = new Complications.Id(
+                Complications.COMPLICATION_TYPE_HEART_RATE
+            );
+            _tempCompId = new Complications.Id(
+                Complications.COMPLICATION_TYPE_CURRENT_TEMPERATURE
+            );
+            _weatherCompId = new Complications.Id(
+                Complications.COMPLICATION_TYPE_CURRENT_WEATHER
+            );
+            if (Complications has :registerComplicationChangeCallback) {
+                Complications.registerComplicationChangeCallback(
+                    method(:onComplicationChanged)
+                );
+            }
+        }
+    }
+
+    // Triggered when the user reassigns a slot in Garmin Connect.
+    function onComplicationChanged(complicationId as Complications.Id) as Void {
+        WatchUi.requestUpdate();
     }
 
     function onLayout(dc) {
@@ -138,219 +178,83 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         dc.setColor(COLOR_BG, COLOR_BG);
         dc.clear();
 
-        var data = readData();
-        drawArcs(dc, data);
+        var comps = readComplications();
+        drawArcs(dc, comps);
         drawCardinalTicks(dc);
         drawTime(dc);
         drawDateWeatherRow(dc);
-        drawArcLabels(dc, data);
+        drawArcLabels(dc, comps);
     }
 
-    // ── Data reads ────────────────────────────────────────────────────────────
+    // ── Complication data ─────────────────────────────────────────────────────
 
-    function readData() {
-        var info = ActivityMonitor.getInfo();
-        return {
-            :hr => readHr(),
-            :stress => readStress(),
-            :body => readBodyBattery(),
-            :kcal => info.calories != null ? info.calories : 0,
-        };
+    function readComplications() as Lang.Array<Complications.Complication?> {
+        var comps = new Lang.Array<Complications.Complication?>[4];
+        if (_compIds != null) {
+            for (var i = 0; i < 4; i++) {
+                comps[i] = Complications.getComplication(_compIds[i]);
+            }
+        }
+        return comps;
     }
 
-    function readHr() {
-        var hr = 0;
-        var s = ActivityMonitor.getHeartRateHistory(1, true).next();
-        if (s != null && s.heartRate != ActivityMonitor.INVALID_HR_SAMPLE) {
-            hr = s.heartRate;
+    // Returns a reasonable arc-fill maximum for each known complication type.
+    function getCompMax(type) {
+        if (type == Complications.COMPLICATION_TYPE_HEART_RATE) {
+            return 200;
         }
-        if (hr != 0) {
-            _lastHr = hr;
-        } else {
-            hr = _lastHr;
+        if (type == Complications.COMPLICATION_TYPE_STRESS) {
+            return 100;
         }
-        return hr;
-    }
-
-    function readStress() {
-        if (
-            !(Toybox has :SensorHistory) ||
-            !(SensorHistory has :getStressHistory)
-        ) {
-            return _lastStress;
+        if (type == Complications.COMPLICATION_TYPE_BODY_BATTERY) {
+            return 100;
         }
-        var value = readSensorIterValue(
-            SensorHistory.getStressHistory({ :period => 1 })
-        );
-        if (value != 0) {
-            _lastStress = value;
-        } else {
-            value = _lastStress;
+        if (type == Complications.COMPLICATION_TYPE_CALORIES) {
+            return 5000;
         }
-        return value;
-    }
-
-    function readBodyBattery() {
-        if (
-            !(Toybox has :SensorHistory) ||
-            !(SensorHistory has :getBodyBatteryHistory)
-        ) {
-            return _lastBody;
+        if (type == Complications.COMPLICATION_TYPE_STEPS) {
+            return 10000;
         }
-        var value = readSensorIterValue(
-            SensorHistory.getBodyBatteryHistory({ :period => 1 })
-        );
-        if (value != 0) {
-            _lastBody = value;
-        } else {
-            value = _lastBody;
+        if (type == Complications.COMPLICATION_TYPE_FLOORS_CLIMBED) {
+            return 50;
         }
-        return value;
-    }
-
-    // Pulls the first .data value from a SensorHistory iterator, or 0 on miss.
-    function readSensorIterValue(iter) {
-        if (iter == null) {
-            return 0;
+        if (type == Complications.COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE) {
+            return 50000;
         }
-        var s = iter.next();
-        return s != null && s.data != null ? s.data.toNumber() : 0;
-    }
-
-    // Returns current temperature in device-preferred units, or null if unavailable.
-    function readTemp() {
-        if (!(Toybox has :Weather) || !(Weather has :getCurrentConditions)) {
-            return null;
-        }
-        var cur = Weather.getCurrentConditions();
-        if (cur == null || cur.temperature == null) {
-            return null;
-        }
-
-        var t = cur.temperature;
-        if (
-            System.getDeviceSettings().temperatureUnits == System.UNIT_STATUTE
-        ) {
-            t = (t * 9) / 5 + 32; // °C → °F
-        }
-        return t.toNumber();
-    }
-
-    // Maps a Weather condition code to a drawable resource ID, or null if unknown.
-    function readWeatherIcon() {
-        if (!(Toybox has :Weather) || !(Weather has :getCurrentConditions)) {
-            return null;
-        }
-        var cur = Weather.getCurrentConditions();
-        if (cur == null || cur.condition == null) {
-            return null;
-        }
-
-        var c = cur.condition;
-
-        if (
-            c == Weather.CONDITION_CLEAR ||
-            c == Weather.CONDITION_FAIR ||
-            c == Weather.CONDITION_MOSTLY_CLEAR ||
-            c == Weather.CONDITION_PARTLY_CLEAR ||
-            c == Weather.CONDITION_THIN_CLOUDS
-        ) {
-            return Rez.Drawables.WeatherSun;
-        } else if (
-            c == Weather.CONDITION_CLOUDY ||
-            c == Weather.CONDITION_MOSTLY_CLOUDY ||
-            c == Weather.CONDITION_PARTLY_CLOUDY
-        ) {
-            return Rez.Drawables.WeatherCloud;
-        } else if (
-            c == Weather.CONDITION_FOG ||
-            c == Weather.CONDITION_HAZY ||
-            c == Weather.CONDITION_HAZE ||
-            c == Weather.CONDITION_MIST ||
-            c == Weather.CONDITION_DRIZZLE ||
-            c == Weather.CONDITION_SMOKE ||
-            c == Weather.CONDITION_DUST ||
-            c == Weather.CONDITION_SAND ||
-            c == Weather.CONDITION_SANDSTORM ||
-            c == Weather.CONDITION_VOLCANIC_ASH
-        ) {
-            return Rez.Drawables.WeatherFog;
-        } else if (c == Weather.CONDITION_HAIL) {
-            return Rez.Drawables.WeatherHail;
-        } else if (
-            c == Weather.CONDITION_RAIN ||
-            c == Weather.CONDITION_LIGHT_RAIN ||
-            c == Weather.CONDITION_HEAVY_RAIN ||
-            c == Weather.CONDITION_SCATTERED_SHOWERS ||
-            c == Weather.CONDITION_SHOWERS ||
-            c == Weather.CONDITION_LIGHT_SHOWERS ||
-            c == Weather.CONDITION_HEAVY_SHOWERS ||
-            c == Weather.CONDITION_CHANCE_OF_SHOWERS ||
-            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN ||
-            c == Weather.CONDITION_FREEZING_RAIN ||
-            c == Weather.CONDITION_UNKNOWN_PRECIPITATION
-        ) {
-            return Rez.Drawables.WeatherRain;
-        } else if (
-            c == Weather.CONDITION_SNOW ||
-            c == Weather.CONDITION_LIGHT_SNOW ||
-            c == Weather.CONDITION_HEAVY_SNOW ||
-            c == Weather.CONDITION_WINTRY_MIX ||
-            c == Weather.CONDITION_LIGHT_RAIN_SNOW ||
-            c == Weather.CONDITION_HEAVY_RAIN_SNOW ||
-            c == Weather.CONDITION_RAIN_SNOW ||
-            c == Weather.CONDITION_CHANCE_OF_SNOW ||
-            c == Weather.CONDITION_CHANCE_OF_RAIN_SNOW ||
-            c == Weather.CONDITION_CLOUDY_CHANCE_OF_SNOW ||
-            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW ||
-            c == Weather.CONDITION_FLURRIES ||
-            c == Weather.CONDITION_SLEET ||
-            c == Weather.CONDITION_ICE_SNOW
-        ) {
-            return Rez.Drawables.WeatherSnow;
-        } else if (c == Weather.CONDITION_TORNADO) {
-            return Rez.Drawables.WeatherTornado;
-        } else if (
-            c == Weather.CONDITION_THUNDERSTORMS ||
-            c == Weather.CONDITION_SCATTERED_THUNDERSTORMS ||
-            c == Weather.CONDITION_CHANCE_OF_THUNDERSTORMS ||
-            c == Weather.CONDITION_HURRICANE ||
-            c == Weather.CONDITION_TROPICAL_STORM
-        ) {
-            return Rez.Drawables.WeatherThunderstorm;
-        } else if (
-            c == Weather.CONDITION_SQUALL ||
-            c == Weather.CONDITION_WINDY
-        ) {
-            return Rez.Drawables.WeatherWind;
-        } else if (c == Weather.CONDITION_ICE) {
-            return Rez.Drawables.WeatherIce;
-        }
-
-        return null;
+        return 100;
     }
 
     // ── Arcs ──────────────────────────────────────────────────────────────────
 
-    // Each arc entry: [startDeg, endDeg, value, maxValue, color]
-    // Angles follow design convention: 0° = top, clockwise positive.
-    function drawArcs(dc, data) {
-        var arcs = [
-            [0, 90, data[:stress], 100, COLOR_STRESS],
-            [90, 180, data[:kcal], 5000, COLOR_KCAL],
-            [180, 270, data[:body], 100, COLOR_BODY],
-            [270, 360, data[:hr], 200, COLOR_HR],
-        ];
+    function drawArcs(
+        dc as Gfx.Dc,
+        comps as Lang.Array<Complications.Complication?>
+    ) as Void {
+        var colors = [COLOR_ARC_0, COLOR_ARC_1, COLOR_ARC_2, COLOR_ARC_3];
+        var arcStarts = [5, 95, 185, 275];
+        var arcEnds = [85, 175, 265, 355];
 
         dc.setPenWidth(arcStroke);
 
-        for (var i = 0; i < arcs.size(); i++) {
-            var a = arcs[i];
-            var startD = a[0];
-            var endD = a[1];
-            var value = a[2];
-            var maxV = a[3];
-            var color = a[4];
+        for (var i = 0; i < 4; i++) {
+            var startD = arcStarts[i];
+            var endD = arcEnds[i];
+            var color = colors[i];
+            var value = 0;
+            var maxV = 100;
+
+            var comp = comps[i];
+            var compType = comp.getType();
+            if (comp != null && comp.value != null) {
+                value = comp.value.toNumber();
+                if (compType == Complications.COMPLICATION_TYPE_CALORIES) {
+                    var info = ActivityMonitor.getInfo();
+                    if (info.calories != null) {
+                        value = info.calories;
+                    }
+                }
+                maxV = getCompMax(compType);
+            }
 
             var fillEnd = startD + ((endD - startD) * value) / maxV;
             if (fillEnd < startD) {
@@ -360,27 +264,14 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
                 fillEnd = endD;
             }
 
-            // Dark background track with rounded caps
             dc.setColor(COLOR_TRACK, Gfx.COLOR_TRANSPARENT);
             drawDesignArc(dc, cx, cy, arcRadius, startD, endD);
-            drawArcCap(dc, cx, cy, arcRadius, startD, COLOR_TRACK);
-            drawArcCap(dc, cx, cy, arcRadius, endD, COLOR_TRACK);
 
-            // Colored fill on top, only when non-zero
             if (fillEnd > startD) {
                 dc.setColor(color, Gfx.COLOR_TRANSPARENT);
                 drawDesignArc(dc, cx, cy, arcRadius, startD, fillEnd);
-                drawArcCap(dc, cx, cy, arcRadius, startD, color);
-                drawArcCap(dc, cx, cy, arcRadius, fillEnd, color);
             }
         }
-    }
-
-    // Filled circle at an arc endpoint to produce a rounded cap.
-    function drawArcCap(dc, ox, oy, r, angleDesign, color) {
-        // var p = polar(ox, oy, r, angleDesign);
-        // dc.setColor(color, Gfx.COLOR_TRANSPARENT);
-        // dc.fillCircle(p[0], p[1], arcStroke / 2);
     }
 
     // Wraps dc.drawArc using design-angle convention (0° = top, CW positive).
@@ -405,7 +296,7 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
 
         var rOuter = arcRadius - arcStroke - 4;
         var rInner = arcRadius - arcStroke - 12;
-        var degrees = [0, 90, 180, 270];
+        var degrees = [0, 90, 180, 270] as Lang.Array<Lang.Number>;
 
         for (var i = 0; i < degrees.size(); i++) {
             var p1 = polar(cx, cy, rOuter, degrees[i]);
@@ -530,58 +421,81 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
 
     // ── Arc value labels ──────────────────────────────────────────────────────
 
-    // Each label is an icon + numeric value placed in a fixed horizontal band
-    // (above or below center). The X position follows the arc's midpoint angle;
-    // the Y position is clamped to one of two fixed rows so labels don't drift.
-    function drawArcLabels(dc, data) {
-        // [midDeg, value, color, iconRes, aboveCenter]
-        var labels = [
-            [45, data[:stress], COLOR_STRESS, Rez.Drawables.IconStress, true],
-            [135, data[:kcal], COLOR_KCAL, Rez.Drawables.IconKcal, false],
-            [225, data[:body], COLOR_BODY, Rez.Drawables.IconBody, false],
-            [315, data[:hr], COLOR_HR, Rez.Drawables.IconHR, true],
+    // Each slot shows two lines: value (colored, large) nearest to center,
+    // and the complication's short label (dim, small) toward the bezel.
+    function drawArcLabels(
+        dc as Gfx.Dc,
+        comps as Lang.Array<Complications.Complication?>
+    ) as Void {
+        var colors = [COLOR_ARC_0, COLOR_ARC_1, COLOR_ARC_2, COLOR_ARC_3];
+        var icons = [
+            Rez.Drawables.IconStress,
+            Rez.Drawables.IconKcal,
+            Rez.Drawables.IconBody,
+            Rez.Drawables.IconHR,
         ];
+        var midAngles = [45, 135, 225, 315];
+        var aboveCenter = [true, false, false, true];
 
         var timeRenderH = (108.0 * scale).toNumber();
         var valFont = Gfx.FONT_TINY;
         var valFontH = Gfx.getFontHeight(valFont);
-        var pad = (20 * scale).toNumber();
-        var iconSize = (32.0 * scale).toNumber();
-        var gap = (8 * scale).toNumber();
+        var pad = (14 * scale).toNumber();
 
-        for (var i = 0; i < labels.size(); i++) {
-            var l = labels[i];
-            var midDeg = l[0];
-            var value = l[1];
-            var color = l[2];
-            var iconRes = l[3];
-            var aboveCenter = l[4];
+        for (var i = 0; i < 4; i++) {
+            var comp = comps[i];
+            var color = colors[i];
+            var midDeg = midAngles[i];
+            var above = aboveCenter[i];
+            var icon = icons[i];
 
+            var valStr = "--";
+            if (comp != null) {
+                if (comp.value != null) {
+                    var val = comp.value.toNumber();
+                    var compType = comp.getType();
+                    if (compType == Complications.COMPLICATION_TYPE_CALORIES) {
+                        var info = ActivityMonitor.getInfo();
+                        if (info.calories != null) {
+                            val = info.calories;
+                        }
+                    }
+                    valStr = val.format("%d");
+                }
+            }
             var lx = polar(cx, cy, labelRadius, midDeg)[0];
-            var dir = aboveCenter ? -1 : 1; // -1 = up, 1 = down from center
-            var rowY =
-                cy +
-                dir * (timeRenderH / 2 + pad + valFontH / 2) -
-                valFontH / 2;
+            // anchor = edge of the label block closest to the time display
+            var anchor = cy + (above ? -1 : 1) * (timeRenderH / 2 + pad);
 
-            var valStr = value.format("%d");
-            var valW = dc.getTextWidthInPixels(valStr, valFont);
-            var rowX = lx - (iconSize + gap + valW) / 2;
+            var valY;
+            if (above) {
+                // block sits above anchor: value at bottom, label above it
+                valY = anchor - valFontH;
+            } else {
+                // block sits below anchor: value at top, label below it
+                valY = anchor;
+            }
 
-            var icon = WatchUi.loadResource(iconRes);
+            var iconSize = 32;
+            System.println("iconSize: " + iconSize);
+            var iconGap = (4 * scale).toNumber();
+            var bmp = WatchUi.loadResource(icon);
+            var textW = dc.getTextWidthInPixels(valStr, valFont);
+            var totalW = iconSize + iconGap + textW;
+            var startX = lx - totalW / 2;
+
+            dc.setColor(color, Gfx.COLOR_TRANSPARENT);
             drawScaledBitmap(
                 dc,
-                icon,
-                rowX,
-                rowY + (valFontH - iconSize) / 2,
+                bmp,
+                startX,
+                valY + (valFontH - iconSize) / 2,
                 iconSize,
                 iconSize
             );
-
-            dc.setColor(color, Gfx.COLOR_TRANSPARENT);
             dc.drawText(
-                rowX + iconSize + gap,
-                rowY,
+                startX + iconSize + iconGap,
+                valY,
                 valFont,
                 valStr,
                 Gfx.TEXT_JUSTIFY_LEFT
@@ -589,11 +503,125 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         }
     }
 
+    // ── Weather helpers ───────────────────────────────────────────────────────
+
+    // Returns current temperature in device-preferred units, or null if unavailable.
+    function readTemp() {
+        if (_tempCompId == null) {
+            return null;
+        }
+        var comp = Complications.getComplication(_tempCompId);
+        if (comp.value == null) {
+            return null;
+        }
+        var t = comp.value.toNumber();
+        if (
+            System.getDeviceSettings().temperatureUnits == System.UNIT_STATUTE
+        ) {
+            t = (t * 9) / 5 + 32; // °C → °F
+        }
+        return t;
+    }
+
+    // Maps a Weather condition code to a drawable resource ID, or null if unknown.
+    function readWeatherIcon() {
+        if (_weatherCompId == null) {
+            return null;
+        }
+        var comp = Complications.getComplication(_weatherCompId);
+        if (comp.value == null) {
+            return null;
+        }
+
+        var c = comp.value.toNumber();
+
+        if (
+            c == Weather.CONDITION_CLEAR ||
+            c == Weather.CONDITION_FAIR ||
+            c == Weather.CONDITION_MOSTLY_CLEAR ||
+            c == Weather.CONDITION_PARTLY_CLEAR ||
+            c == Weather.CONDITION_THIN_CLOUDS
+        ) {
+            return Rez.Drawables.WeatherSun;
+        } else if (
+            c == Weather.CONDITION_CLOUDY ||
+            c == Weather.CONDITION_MOSTLY_CLOUDY ||
+            c == Weather.CONDITION_PARTLY_CLOUDY
+        ) {
+            return Rez.Drawables.WeatherCloud;
+        } else if (
+            c == Weather.CONDITION_FOG ||
+            c == Weather.CONDITION_HAZY ||
+            c == Weather.CONDITION_HAZE ||
+            c == Weather.CONDITION_MIST ||
+            c == Weather.CONDITION_DRIZZLE ||
+            c == Weather.CONDITION_SMOKE ||
+            c == Weather.CONDITION_DUST ||
+            c == Weather.CONDITION_SAND ||
+            c == Weather.CONDITION_SANDSTORM ||
+            c == Weather.CONDITION_VOLCANIC_ASH
+        ) {
+            return Rez.Drawables.WeatherFog;
+        } else if (c == Weather.CONDITION_HAIL) {
+            return Rez.Drawables.WeatherHail;
+        } else if (
+            c == Weather.CONDITION_RAIN ||
+            c == Weather.CONDITION_LIGHT_RAIN ||
+            c == Weather.CONDITION_HEAVY_RAIN ||
+            c == Weather.CONDITION_SCATTERED_SHOWERS ||
+            c == Weather.CONDITION_SHOWERS ||
+            c == Weather.CONDITION_LIGHT_SHOWERS ||
+            c == Weather.CONDITION_HEAVY_SHOWERS ||
+            c == Weather.CONDITION_CHANCE_OF_SHOWERS ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN ||
+            c == Weather.CONDITION_FREEZING_RAIN ||
+            c == Weather.CONDITION_UNKNOWN_PRECIPITATION
+        ) {
+            return Rez.Drawables.WeatherRain;
+        } else if (
+            c == Weather.CONDITION_SNOW ||
+            c == Weather.CONDITION_LIGHT_SNOW ||
+            c == Weather.CONDITION_HEAVY_SNOW ||
+            c == Weather.CONDITION_WINTRY_MIX ||
+            c == Weather.CONDITION_LIGHT_RAIN_SNOW ||
+            c == Weather.CONDITION_HEAVY_RAIN_SNOW ||
+            c == Weather.CONDITION_RAIN_SNOW ||
+            c == Weather.CONDITION_CHANCE_OF_SNOW ||
+            c == Weather.CONDITION_CHANCE_OF_RAIN_SNOW ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_SNOW ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW ||
+            c == Weather.CONDITION_FLURRIES ||
+            c == Weather.CONDITION_SLEET ||
+            c == Weather.CONDITION_ICE_SNOW
+        ) {
+            return Rez.Drawables.WeatherSnow;
+        } else if (c == Weather.CONDITION_TORNADO) {
+            return Rez.Drawables.WeatherTornado;
+        } else if (
+            c == Weather.CONDITION_THUNDERSTORMS ||
+            c == Weather.CONDITION_SCATTERED_THUNDERSTORMS ||
+            c == Weather.CONDITION_CHANCE_OF_THUNDERSTORMS ||
+            c == Weather.CONDITION_HURRICANE ||
+            c == Weather.CONDITION_TROPICAL_STORM
+        ) {
+            return Rez.Drawables.WeatherThunderstorm;
+        } else if (
+            c == Weather.CONDITION_SQUALL ||
+            c == Weather.CONDITION_WINDY
+        ) {
+            return Rez.Drawables.WeatherWind;
+        } else if (c == Weather.CONDITION_ICE) {
+            return Rez.Drawables.WeatherIce;
+        }
+
+        return null;
+    }
+
     // ── Geometry ──────────────────────────────────────────────────────────────
 
     // Converts design-angle polar coordinates to screen (x, y).
     // Design convention: 0° = top, clockwise positive (matches clock face intuition).
-    function polar(ox, oy, r, angleDesign) {
+    function polar(ox, oy, r, angleDesign) as Lang.Array<Lang.Number> {
         var rad = ((angleDesign - 90) * Math.PI) / 180.0;
         return [
             (ox + r * Math.cos(rad)).toNumber(),
