@@ -20,11 +20,13 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     private const COLOR_DIM = 0x8a8a8a;
     private const COLOR_DIVIDER = 0x444444;
 
-    // Arc accent colors — fixed per position, independent of complication type
-    private const COLOR_ARC_0 = 0xffa040; // top-right
-    private const COLOR_ARC_1 = 0xff7da3; // bottom-right
-    private const COLOR_ARC_2 = 0x4a9eff; // bottom-left
-    private const COLOR_ARC_3 = 0xff4d4d; // top-left
+    // Arc accent colors — fixed per position, independent of complication type.
+    // Dimmed to 80% of the original design values to be easier on the AMOLED
+    // panel; keep in sync with BRIGHTNESS in tools/gen_arc_icons.py.
+    private const COLOR_ARC_0 = 0xcc8033; // top-right (80% of 0xffa040)
+    private const COLOR_ARC_1 = 0xcc6482; // bottom-right (80% of 0xff7da3)
+    private const COLOR_ARC_2 = 0x3b7ecc; // bottom-left (80% of 0x4a9eff)
+    private const COLOR_ARC_3 = 0xcc3d3d; // top-left (80% of 0xff4d4d)
 
     // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,9 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     private var _compIds as Lang.Array<Complications.Id>?;
     private var _tempCompId as Complications.Id?;
     private var _weatherCompId as Complications.Id?;
+
+    // True while the device is in always-on (low power) mode.
+    private var _inLowPower = false;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -155,7 +160,7 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         cy = screenH / 2;
 
         scale = screenW.toFloat() / 454.0;
-        arcStroke = (16.0 * scale).toNumber();
+        arcStroke = (24.0 * scale).toNumber();
         arcRadius = screenW / 2 - arcStroke / 2;
         labelRadius = (148.0 * scale).toNumber();
 
@@ -166,8 +171,12 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
 
     function onShow() {}
     function onHide() {}
-    function onExitSleep() {}
+    function onExitSleep() {
+        _inLowPower = false;
+        WatchUi.requestUpdate();
+    }
     function onEnterSleep() {
+        _inLowPower = true;
         WatchUi.requestUpdate();
     }
 
@@ -178,12 +187,44 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         dc.setColor(COLOR_BG, COLOR_BG);
         dc.clear();
 
+        if (_inLowPower) {
+            drawLowPower(dc);
+            return;
+        }
+
         var comps = readComplications();
         drawArcs(dc, comps);
         drawCardinalTicks(dc);
         drawTime(dc);
         drawDateWeatherRow(dc);
         drawArcLabels(dc, comps);
+    }
+
+    // ── Always-on (low power) mode ────────────────────────────────────────────
+    //
+    // AMOLED burn-in protection: keep well under ~10% of pixels lit, no bright
+    // colors, and drift the time by a few pixels each minute so no pixel stays
+    // lit continuously. The static full-brightness arcs shown in AOD are what
+    // produced the ghost ring this face burned into the panel.
+    function drawLowPower(dc) {
+        var clock = System.getClockTime();
+        var t = Lang.format("$1$:$2$", [
+            clock.hour.format("%02d"),
+            clock.min.format("%02d"),
+        ]);
+
+        // Cycle through a 5x5 pixel grid of offsets over 25 minutes.
+        var dx = (clock.min % 5) - 2;
+        var dy = ((clock.min / 5) % 5) - 2;
+
+        dc.setColor(0x555555, Gfx.COLOR_TRANSPARENT);
+        dc.drawText(
+            cx + dx,
+            cy + dy,
+            Gfx.FONT_NUMBER_MILD,
+            t,
+            Gfx.TEXT_JUSTIFY_CENTER | Gfx.TEXT_JUSTIFY_VCENTER
+        );
     }
 
     // ── Complication data ─────────────────────────────────────────────────────
@@ -234,8 +275,6 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         var arcStarts = [5, 95, 185, 275];
         var arcEnds = [85, 175, 265, 355];
 
-        dc.setPenWidth(arcStroke);
-
         for (var i = 0; i < 4; i++) {
             var startD = arcStarts[i];
             var endD = arcEnds[i];
@@ -264,14 +303,55 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
                 fillEnd = endD;
             }
 
-            dc.setColor(COLOR_TRACK, Gfx.COLOR_TRANSPARENT);
-            drawDesignArc(dc, cx, cy, arcRadius, startD, endD);
+            dc.setColor(COLOR_TRACK, COLOR_TRACK);
+            drawThickDesignArc(dc, arcRadius, arcStroke, startD, endD);
+            drawArcCap(dc, startD);
+            drawArcCap(dc, endD);
 
             if (fillEnd > startD) {
-                dc.setColor(color, Gfx.COLOR_TRANSPARENT);
-                drawDesignArc(dc, cx, cy, arcRadius, startD, fillEnd);
+                dc.setColor(color, color);
+                drawThickDesignArc(dc, arcRadius, arcStroke, startD, fillEnd);
+                drawArcCap(dc, startD);
+                drawArcCap(dc, fillEnd);
             }
         }
+    }
+
+    // Rounds off an arc end by drawing a filled circle over it, since
+    // dc.drawArc only supports flat (butt) line caps.
+    function drawArcCap(dc, angleDesign) {
+        // Compute the center in floating point — polar() truncates to ints,
+        // which biases the cap up/left (radially outward on the left/top of
+        // the dial). The half-pixel radius trim keeps the cap flush with the
+        // arc's pen width.
+        // Round to nearest pixel ourselves — fillCircle truncates float
+        // coordinates on this firmware, which biases the cap up/left.
+        var rad = ((angleDesign - 90) * Math.PI) / 180.0;
+        var x = cx + arcRadius * Math.cos(rad);
+        var y = cy + arcRadius * Math.sin(rad);
+        dc.fillCircle(Math.round(x), Math.round(y), arcStroke / 2.0 - 1);
+    }
+
+    // Device firmware caps the hardware pen width for drawArc around 16px and
+    // renders wider strokes as two split passes whose anti-aliased seam shows
+    // the color underneath (the simulator draws it in one pass, so it only
+    // shows on the watch). Split thick strokes ourselves into two concentric
+    // passes that overlap by several fully-opaque pixels, so the seam falls on
+    // same-color solid pixels and disappears.
+    function drawThickDesignArc(dc, r, stroke, startDesign, endDesign) {
+        if (stroke <= 16) {
+            dc.setPenWidth(stroke);
+            drawDesignArc(dc, cx, cy, r, startDesign, endDesign);
+            return;
+        }
+        var pen = stroke / 2 + 2;
+        if ((stroke - pen) % 2 != 0) {
+            pen += 1;
+        }
+        var off = (stroke - pen) / 2;
+        dc.setPenWidth(pen);
+        drawDesignArc(dc, cx, cy, r + off, startDesign, endDesign);
+        drawDesignArc(dc, cx, cy, r - off, startDesign, endDesign);
     }
 
     // Wraps dc.drawArc using design-angle convention (0° = top, CW positive).
@@ -292,7 +372,10 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     // Short tick marks at the four arc gap positions to visually separate segments.
     function drawCardinalTicks(dc) {
         dc.setColor(COLOR_DIVIDER, Gfx.COLOR_TRANSPARENT);
-        dc.setPenWidth(2);
+        // Odd pen width so the tick centers exactly on the cardinal axis —
+        // an even width rasterizes wholly to one side of the line, which made
+        // the gaps around the ticks look uneven.
+        dc.setPenWidth(3);
 
         var rOuter = arcRadius - arcStroke - 4;
         var rInner = arcRadius - arcStroke - 12;
@@ -421,8 +504,8 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
 
     // ── Arc value labels ──────────────────────────────────────────────────────
 
-    // Each slot shows two lines: value (colored, large) nearest to center,
-    // and the complication's short label (dim, small) toward the bezel.
+    // Each slot shows a flat icon (pre-tinted to the arc accent color) next
+    // to the value, centered on the arc's mid-angle.
     function drawArcLabels(
         dc as Gfx.Dc,
         comps as Lang.Array<Complications.Complication?>
@@ -438,7 +521,7 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         var aboveCenter = [true, false, false, true];
 
         var timeRenderH = (108.0 * scale).toNumber();
-        var valFont = Gfx.FONT_TINY;
+        var valFont = Gfx.FONT_SYSTEM_XTINY;
         var valFontH = Gfx.getFontHeight(valFont);
         var pad = (14 * scale).toNumber();
 
@@ -476,9 +559,11 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
                 valY = anchor;
             }
 
-            var iconSize = 32;
-            System.println("iconSize: " + iconSize);
-            var iconGap = (4 * scale).toNumber();
+            // Icons are flat silhouettes pre-tinted to the arc accent color,
+            // sized to roughly the numerals' cap height so the value stays
+            // the dominant element.
+            var iconSize = (20.0 * scale).toNumber();
+            var iconGap = (6 * scale).toNumber();
             var bmp = WatchUi.loadResource(icon);
             var textW = dc.getTextWidthInPixels(valStr, valFont);
             var totalW = iconSize + iconGap + textW;
