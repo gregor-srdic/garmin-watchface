@@ -16,17 +16,17 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     // ── Palette ───────────────────────────────────────────────────────────────
 
     private const COLOR_BG = 0x000000;
-    private const COLOR_TRACK = 0x2f2f2f;
+    private const COLOR_TRACK = 0x1e1e1e; // 65% of the original 0x2f2f2f
     private const COLOR_DIM = 0x8a8a8a;
     private const COLOR_DIVIDER = 0x444444;
 
     // Arc accent colors — fixed per position, independent of complication type.
-    // Dimmed to 80% of the original design values to be easier on the AMOLED
-    // panel; keep in sync with BRIGHTNESS in tools/gen_arc_icons.py.
-    private const COLOR_ARC_0 = 0xcc8033; // top-right (80% of 0xffa040)
-    private const COLOR_ARC_1 = 0xcc6482; // bottom-right (80% of 0xff7da3)
-    private const COLOR_ARC_2 = 0x3b7ecc; // bottom-left (80% of 0x4a9eff)
-    private const COLOR_ARC_3 = 0xcc3d3d; // top-left (80% of 0xff4d4d)
+    // Dimmed to 65% of the original design values to slow AMOLED image
+    // retention / burn-in; keep in sync with BRIGHTNESS in tools/gen_arc_icons.py.
+    private const COLOR_ARC_0 = 0xa56829; // top-right (65% of 0xffa040)
+    private const COLOR_ARC_1 = 0xa55169; // bottom-right (65% of 0xff7da3)
+    private const COLOR_ARC_2 = 0x3066a5; // bottom-left (65% of 0x4a9eff)
+    private const COLOR_ARC_3 = 0xa53232; // top-left (65% of 0xff4d4d)
 
     // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -303,13 +303,13 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
                 fillEnd = endD;
             }
 
-            dc.setColor(COLOR_TRACK, COLOR_TRACK);
+            dc.setColor(COLOR_TRACK, Gfx.COLOR_TRANSPARENT);
             drawThickDesignArc(dc, arcRadius, arcStroke, startD, endD);
             drawArcCap(dc, startD);
             drawArcCap(dc, endD);
 
             if (fillEnd > startD) {
-                dc.setColor(color, color);
+                dc.setColor(color, Gfx.COLOR_TRANSPARENT);
                 drawThickDesignArc(dc, arcRadius, arcStroke, startD, fillEnd);
                 drawArcCap(dc, startD);
                 drawArcCap(dc, fillEnd);
@@ -339,7 +339,7 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     // passes that overlap by several fully-opaque pixels, so the seam falls on
     // same-color solid pixels and disappears.
     function drawThickDesignArc(dc, r, stroke, startDesign, endDesign) {
-        if (stroke <= 16) {
+        if (stroke <= 240) {
             dc.setPenWidth(stroke);
             drawDesignArc(dc, cx, cy, r, startDesign, endDesign);
             return;
@@ -377,8 +377,11 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         // the gaps around the ticks look uneven.
         dc.setPenWidth(3);
 
-        var rOuter = arcRadius - arcStroke - 4;
-        var rInner = arcRadius - arcStroke - 12;
+        // AMOLED wear protection: drift the ticks radially outward by 0..+4 px
+        // on a 5-minute cycle so their pixels don't accumulate wear in one spot.
+        var drift = (System.getClockTime().min % 5);
+        var rOuter = arcRadius - arcStroke - 4 + drift;
+        var rInner = arcRadius - arcStroke - 12 + drift;
         var degrees = [0, 90, 180, 270] as Lang.Array<Lang.Number>;
 
         for (var i = 0; i < degrees.size(); i++) {
@@ -525,6 +528,13 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         var valFontH = Gfx.getFontHeight(valFont);
         var pad = (14 * scale).toNumber();
 
+        // AMOLED wear protection: drift the labels vertically by -2..+2 px on
+        // a 5-minute cycle so their pixels don't accumulate wear in one spot.
+        // Mirrored about the screen center: top labels move up while bottom
+        // labels move down (and vice versa), keeping both equidistant from
+        // the middle.
+        var drift = (System.getClockTime().min % 5) - 2;
+
         for (var i = 0; i < 4; i++) {
             var comp = comps[i];
             var color = colors[i];
@@ -558,6 +568,7 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
                 // block sits below anchor: value at top, label below it
                 valY = anchor;
             }
+            valY += above ? -drift : drift;
 
             // Icons are flat silhouettes pre-tinted to the arc accent color,
             // sized to roughly the numerals' cap height so the value stays

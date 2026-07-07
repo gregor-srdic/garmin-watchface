@@ -15,7 +15,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "resources", "images")
 
 # Slot accent colors from ForerunnerWatchFaceView.mc (original design values;
 # BRIGHTNESS below must match the dimming applied to the COLOR_ARC_* constants)
-BRIGHTNESS = 0.8
+BRIGHTNESS = 0.65
 
 COLORS = {
     "hr": (0xFF, 0x4D, 0x4D),        # COLOR_ARC_3 red
