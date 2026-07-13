@@ -20,3 +20,8 @@ bin/optimized/
 # VS Code
 .vscode/
 .claude/
+
+# Signing keys and store bundles — NEVER commit these
+*.der
+*.pem
+*.iq

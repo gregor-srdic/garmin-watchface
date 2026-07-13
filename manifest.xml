@@ -1,9 +1,22 @@
 <?xml version="1.0"?>
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
     <iq:application entry="ForerunnerWatchFaceApp" id="a1b2c3d4e5f60718293a4b5c6d7e8f90" launcherIcon="@Drawables.LauncherIcon" minApiLevel="4.2.0" name="@Strings.AppName" type="watchface">
-        <!-- Devices that ship with a 454x454 round AMOLED display -->
+        <!-- Devices that ship with a 454x454 round AMOLED display.
+             The layout is resolution-independent (scales off screen width), so
+             every device in this family renders without code changes. Product
+             IDs verified against the SDK 9.1.0 device-reference catalog. -->
         <iq:products>
             <iq:product id="fr965"/>
+            <iq:product id="fr970"/>
+            <iq:product id="fr57047mm"/>
+            <iq:product id="venu3"/>
+            <iq:product id="venu445mm"/>
+            <iq:product id="fenix847mm"/>
+            <iq:product id="fenix8pro47mm"/>
+            <iq:product id="epix2pro51mm"/>
+            <iq:product id="d2mach2"/>
+            <iq:product id="descentmk351mm"/>
+            <iq:product id="approachs7047mm"/>
         </iq:products>
         <!-- Permissions required for HR + Body Battery + Stress + Weather -->
         <iq:permissions>
