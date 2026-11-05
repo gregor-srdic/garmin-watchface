@@ -1,7 +1,7 @@
 using Toybox.Application;
 using Toybox.WatchUi;
 
-class ForerunnerWatchFaceApp extends Application.AppBase {
+class ArchesWatchFaceApp extends Application.AppBase {
 
     function initialize() {
         AppBase.initialize();
@@ -14,6 +14,6 @@ class ForerunnerWatchFaceApp extends Application.AppBase {
     }
 
     function getInitialView() {
-        return [ new ForerunnerWatchFaceView() ];
+        return [ new ArchesWatchFaceView() ];
     }
 }
