@@ -7,9 +7,9 @@ A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix
   - top-right (orange) — stress
   - bottom-left (blue) — body battery
   - bottom-right (rose) — calories
-- **Date** row above the time (e.g. `APR 28`)
+- **Date** row above the time (e.g. `APR 28`; in 12-hour mode `APR 28 · PM`)
 - **Time** in the device's 12/24-hour format, displayed as pre-tinted bitmap digits (orange → rose → purple → blue)
-- **Weather** below the time — a condition icon plus temperature (e.g. `⛅ 18°`)
+- **Weather** below the time — a condition icon plus temperature (e.g. `⛅ 18°`); clear skies show a moon after sunset
 - **Always-on (low power) mode** with AMOLED burn-in protection
 
 ## Screenshots
@@ -36,17 +36,21 @@ monkeyc/
     strings/strings.xml           App name ("Arches")
     drawables/drawables.xml       56 bitmap registrations
     images/
-      launcher_icon.png           65×65 launcher icon (SDK scales per device)
+      launcher_icon.png           65×65 launcher icon (default size)
       hr.png, stress.png,
         body.png, calories.png    Arc metric icons (flat, pre-tinted per slot)
-      weather_*.png               10 weather condition icons
+      weather_*.png               11 weather condition icons (incl. night moon)
       h1_0..h1_9.png              Hours tens digit (orange-tinted)
       h2_0..h2_9.png              Hours units digit (rose-tinted)
       colon_colon.png             Colon separator (purple-tinted)
       m1_0..m1_9.png              Minutes tens digit (purple-tinted)
       m2_0..m2_9.png              Minutes units digit (blue-tinted)
+  resources-icon60/, resources-icon70/
+                                  Native 60×60 / 70×70 launcher icons (see monkey.jungle)
   tools/
     gen_arc_icons.py              Regenerates the pre-tinted arc metric icons
+    gen_launcher_icon.py          Draws the launcher icon at a given size
+    gen_moon_icon.py              Draws the night (moon) weather icon
 ```
 
 ## Complications
@@ -83,11 +87,12 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 | `onLayout()` | Computes `scale`, `arcRadius`, `arcStroke`, `labelRadius` from actual screen size |
 | `readComplications()` | Reads the four arc complications each frame |
 | `readTemp()` | Reads the temperature complication (always Celsius); converts to °F if the device uses statute units, rounding after converting |
-| `readWeatherIcon()` | Maps all Garmin `CONDITION_*` constants to one of 10 weather PNG icons |
+| `readWeatherIcon()` | Maps `CONDITION_*` to a weather icon via `ArchesLogic.weatherIconFor()`; moon instead of sun at night |
+| `isNightNow()` | Sunrise/sunset at the weather location (refreshed hourly); falls back to 20:00–06:00 |
 | `drawArcs()` | Four progress arcs over a dim track, with filled-circle endcaps for a rounded look |
 | `drawThickDesignArc()` | Single drawArc pass; strokes above `SPLIT_THRESHOLD` fall back to two overlapping passes (firmware seam workaround) |
 | `drawCardinalTicks()` | Short divider ticks at the four arc gaps |
-| `drawTime()` | Renders five bitmap images (h1, h2, colon, m1, m2); each position has its own tint |
+| `drawTime()` | Renders five bitmap images (h1, h2, colon, m1, m2); each position has its own tint. Bitmaps are cached and reload only when the minute changes |
 | `drawDateWeatherRow()` | Date string (above time) and temperature + weather icon (below time) |
 | `drawArcLabels()` | Metric icon + formatted integer value, above/below center per slot |
 | `drawLowPower()` | Minimal always-on rendering (see below) |
@@ -95,7 +100,7 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 ### Always-on mode & AMOLED burn-in protection
 
 `onEnterSleep()` / `onExitSleep()` toggle a low-power flag; in low power `onUpdate()`
-delegates to `drawLowPower()`, which draws only a dim `HH:MM` string and shifts it
+delegates to `drawLowPower()`, which draws only a dim `HH:MM` string (plus a small AM/PM in 12-hour mode) and shifts it
 around a 5×5 pixel grid over 25 minutes so no pixel stays continuously lit.
 
 In full-power mode several measures reduce image retention:
@@ -157,7 +162,7 @@ monkeydo test.prg fr965 /t
 
 - `manifest.xml` `id="..."` is the permanent app ID — never change it after the first
   store upload, and always sign with the same developer key.
-- `resources/images/launcher_icon.png` — 65×65; the SDK rescales it per device (build warns).
+- Launcher icon: 65×65 default; native 60×60 and 70×70 versions for the devices that need them, wired in `monkey.jungle`. Regenerate with `tools/gen_launcher_icon.py`.
 - App store name, description, and screenshots.
 
 ## AI assistance

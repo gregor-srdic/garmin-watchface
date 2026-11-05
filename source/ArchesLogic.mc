@@ -2,6 +2,7 @@ using Toybox.ActivityMonitor;
 using Toybox.Complications;
 using Toybox.Lang;
 using Toybox.Math;
+using Toybox.Weather;
 
 // Pure helpers used by the view. Kept free of drawing code so they can be
 // unit-tested (see test/ArchesLogicTest.mc).
@@ -76,5 +77,109 @@ module ArchesLogic {
             t = t * 9.0 / 5.0 + 32.0;
         }
         return Math.round(t).toNumber();
+    }
+
+    // "AM" for 00:00-11:59, "PM" for 12:00-23:59.
+    function ampmLabel(hour as Lang.Number) as Lang.String {
+        return hour < 12 ? "AM" : "PM";
+    }
+
+    // True before sunrise or from sunset on (times in seconds since epoch).
+    // Without sunrise/sunset data, night is 20:00-06:00 local time.
+    function isNight(
+        now as Lang.Number,
+        sunrise as Lang.Number?,
+        sunset as Lang.Number?,
+        hour as Lang.Number
+    ) as Lang.Boolean {
+        if (sunrise == null || sunset == null) {
+            return hour < 6 || hour >= 20;
+        }
+        return now < sunrise || now >= sunset;
+    }
+
+    // Maps a Weather condition code to a drawable resource ID, or null if
+    // unknown. Clear-sky conditions show a moon instead of the sun at night.
+    function weatherIconFor(c as Lang.Number, night as Lang.Boolean) as Lang.ResourceId? {
+        if (
+            c == Weather.CONDITION_CLEAR ||
+            c == Weather.CONDITION_FAIR ||
+            c == Weather.CONDITION_MOSTLY_CLEAR ||
+            c == Weather.CONDITION_PARTLY_CLEAR ||
+            c == Weather.CONDITION_THIN_CLOUDS
+        ) {
+            return night ? Rez.Drawables.WeatherMoon : Rez.Drawables.WeatherSun;
+        } else if (
+            c == Weather.CONDITION_CLOUDY ||
+            c == Weather.CONDITION_MOSTLY_CLOUDY ||
+            c == Weather.CONDITION_PARTLY_CLOUDY
+        ) {
+            return Rez.Drawables.WeatherCloud;
+        } else if (
+            c == Weather.CONDITION_FOG ||
+            c == Weather.CONDITION_HAZY ||
+            c == Weather.CONDITION_HAZE ||
+            c == Weather.CONDITION_MIST ||
+            c == Weather.CONDITION_DRIZZLE ||
+            c == Weather.CONDITION_SMOKE ||
+            c == Weather.CONDITION_DUST ||
+            c == Weather.CONDITION_SAND ||
+            c == Weather.CONDITION_SANDSTORM ||
+            c == Weather.CONDITION_VOLCANIC_ASH
+        ) {
+            return Rez.Drawables.WeatherFog;
+        } else if (c == Weather.CONDITION_HAIL) {
+            return Rez.Drawables.WeatherHail;
+        } else if (
+            c == Weather.CONDITION_RAIN ||
+            c == Weather.CONDITION_LIGHT_RAIN ||
+            c == Weather.CONDITION_HEAVY_RAIN ||
+            c == Weather.CONDITION_SCATTERED_SHOWERS ||
+            c == Weather.CONDITION_SHOWERS ||
+            c == Weather.CONDITION_LIGHT_SHOWERS ||
+            c == Weather.CONDITION_HEAVY_SHOWERS ||
+            c == Weather.CONDITION_CHANCE_OF_SHOWERS ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN ||
+            c == Weather.CONDITION_FREEZING_RAIN ||
+            c == Weather.CONDITION_UNKNOWN_PRECIPITATION
+        ) {
+            return Rez.Drawables.WeatherRain;
+        } else if (
+            c == Weather.CONDITION_SNOW ||
+            c == Weather.CONDITION_LIGHT_SNOW ||
+            c == Weather.CONDITION_HEAVY_SNOW ||
+            c == Weather.CONDITION_WINTRY_MIX ||
+            c == Weather.CONDITION_LIGHT_RAIN_SNOW ||
+            c == Weather.CONDITION_HEAVY_RAIN_SNOW ||
+            c == Weather.CONDITION_RAIN_SNOW ||
+            c == Weather.CONDITION_CHANCE_OF_SNOW ||
+            c == Weather.CONDITION_CHANCE_OF_RAIN_SNOW ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_SNOW ||
+            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW ||
+            c == Weather.CONDITION_FLURRIES ||
+            c == Weather.CONDITION_SLEET ||
+            c == Weather.CONDITION_ICE_SNOW
+        ) {
+            return Rez.Drawables.WeatherSnow;
+        } else if (c == Weather.CONDITION_TORNADO) {
+            return Rez.Drawables.WeatherTornado;
+        } else if (
+            c == Weather.CONDITION_THUNDERSTORMS ||
+            c == Weather.CONDITION_SCATTERED_THUNDERSTORMS ||
+            c == Weather.CONDITION_CHANCE_OF_THUNDERSTORMS ||
+            c == Weather.CONDITION_HURRICANE ||
+            c == Weather.CONDITION_TROPICAL_STORM
+        ) {
+            return Rez.Drawables.WeatherThunderstorm;
+        } else if (
+            c == Weather.CONDITION_SQUALL ||
+            c == Weather.CONDITION_WINDY
+        ) {
+            return Rez.Drawables.WeatherWind;
+        } else if (c == Weather.CONDITION_ICE) {
+            return Rez.Drawables.WeatherIce;
+        }
+
+        return null;
     }
 }

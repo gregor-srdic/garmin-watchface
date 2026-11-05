@@ -13,6 +13,7 @@
     <bitmap id="WeatherThunderstorm" filename="../images/weather_thunderstorm.png"/>
     <bitmap id="WeatherWind"        filename="../images/weather_wind.png"/>
     <bitmap id="WeatherIce"         filename="../images/weather_ice.png"/>
+    <bitmap id="WeatherMoon"        filename="../images/weather_moon.png"/>
     <!-- Arc metric icons -->
     <bitmap id="IconHR" filename="../images/hr.png"/>
     <bitmap id="IconStress" filename="../images/stress.png"/>

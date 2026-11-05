@@ -1,2 +1,8 @@
 project.manifest = manifest.xml
 base.sourcePath = source;test
+
+# Native launcher icon sizes (the default 65x65 is rescaled, and blurred, elsewhere).
+epix2pro51mm.resourcePath = $(epix2pro51mm.resourcePath);resources-icon60
+descentmk351mm.resourcePath = $(descentmk351mm.resourcePath);resources-icon60
+venu3.resourcePath = $(venu3.resourcePath);resources-icon70
+approachs7047mm.resourcePath = $(approachs7047mm.resourcePath);resources-icon70

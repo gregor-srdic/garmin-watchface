@@ -54,6 +54,25 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     // True while the device is in always-on (low power) mode.
     private var _inLowPower = false;
 
+    // ── Bitmap caches ─────────────────────────────────────────────────────────
+    // The face redraws every second for a few seconds after a wrist raise.
+    // Loading bitmaps on every redraw wastes battery, so:
+    //   - metric icons and the colon load once,
+    //   - the four digit bitmaps reload only when the shown time changes,
+    //   - the weather icon reloads only when the condition (or day/night) changes.
+    private var _iconBmps as Lang.Array? = null;
+    private var _colonBmp = null;
+    private var _timeKey as Lang.String? = null;
+    private var _digitBmps as Lang.Array? = null;
+    private var _weatherIconRes = null;
+    private var _weatherBmp = null;
+
+    // Sunrise/sunset (seconds since epoch) for the weather location, refreshed
+    // at most once per hour. Null when unavailable (fixed-hours fallback).
+    private var _sunHourKey = -1;
+    private var _sunrise as Lang.Number? = null;
+    private var _sunset as Lang.Number? = null;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     function initialize() {
@@ -197,11 +216,9 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     // produced the ghost ring this face burned into the panel.
     function drawLowPower(dc) {
         var clock = System.getClockTime();
+        var is24Hour = System.getDeviceSettings().is24Hour;
         var t = Lang.format("$1$:$2$", [
-            ArchesLogic.hourString(
-                clock.hour,
-                System.getDeviceSettings().is24Hour
-            ),
+            ArchesLogic.hourString(clock.hour, is24Hour),
             clock.min.format("%02d"),
         ]);
 
@@ -217,6 +234,18 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             t,
             Gfx.TEXT_JUSTIFY_CENTER | Gfx.TEXT_JUSTIFY_VCENTER
         );
+
+        // AM/PM under the time in 12-hour mode: same dim colour, drifts with it.
+        if (!is24Hour) {
+            var timeH = Gfx.getFontHeight(Gfx.FONT_NUMBER_MILD);
+            dc.drawText(
+                cx + dx,
+                cy + dy + timeH / 2,
+                Gfx.FONT_XTINY,
+                ArchesLogic.ampmLabel(clock.hour),
+                Gfx.TEXT_JUSTIFY_CENTER
+            );
+        }
     }
 
     // ── Complication data ─────────────────────────────────────────────────────
@@ -371,10 +400,16 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             m.substring(1, 2),
         ];
 
-        var bmps = new [5];
-        for (var i = 0; i < 5; i++) {
-            bmps[i] = loadDigitBitmap(i, glyphs[i]);
+        // Reload digit bitmaps only when the shown time changes.
+        var key = h + m;
+        if (_digitBmps == null || !key.equals(_timeKey)) {
+            _digitBmps = new [5];
+            for (var i = 0; i < 5; i++) {
+                _digitBmps[i] = loadDigitBitmap(i, glyphs[i]);
+            }
+            _timeKey = key;
         }
+        var bmps = _digitBmps;
 
         var renderH = (108.0 * scale).toNumber();
         var renderScale = renderH / 90.0;
@@ -399,7 +434,10 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     // pos: 0=h1, 1=h2, 2=colon, 3=m1, 4=m2
     function loadDigitBitmap(pos, ch) {
         if (ch.equals(":")) {
-            return WatchUi.loadResource(Rez.Drawables.DigitColon);
+            if (_colonBmp == null) {
+                _colonBmp = WatchUi.loadResource(Rez.Drawables.DigitColon);
+            }
+            return _colonBmp;
         }
         var d = ch.toNumber();
         var table =
@@ -427,6 +465,11 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     function drawDateWeatherRow(dc) {
         var info = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
         var dateStr = Lang.format("$1$ $2$", [info.month.toUpper(), info.day]);
+        // 12-hour mode: AM/PM goes in the date row ("NOV 5 · PM").
+        if (!System.getDeviceSettings().is24Hour) {
+            dateStr +=
+                " · " + ArchesLogic.ampmLabel(System.getClockTime().hour);
+        }
 
         var timeRenderH = (108.0 * scale).toNumber();
         var segmentHeight = cy - timeRenderH / 2 - arcStroke;
@@ -459,8 +502,11 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             var x = cx - totalW / 2;
 
             if (iconRes != null) {
-                var icon = WatchUi.loadResource(iconRes);
-                drawScaledBitmap(dc, icon, x, weatherY, iconSize, iconSize);
+                if (iconRes != _weatherIconRes) {
+                    _weatherBmp = WatchUi.loadResource(iconRes);
+                    _weatherIconRes = iconRes;
+                }
+                drawScaledBitmap(dc, _weatherBmp, x, weatherY, iconSize, iconSize);
                 x += iconSize + gap;
             }
             dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
@@ -497,12 +543,18 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         // the middle.
         var drift = (System.getClockTime().min % 5) - 2;
 
+        if (_iconBmps == null) {
+            _iconBmps = new [4];
+            for (var j = 0; j < 4; j++) {
+                _iconBmps[j] = WatchUi.loadResource(icons[j]);
+            }
+        }
+
         for (var i = 0; i < 4; i++) {
             var comp = comps[i];
             var color = colors[i];
             var midDeg = midAngles[i];
             var above = aboveCenter[i];
-            var icon = icons[i];
 
             var val = ArchesLogic.slotValue(comp);
             var valStr = val == null ? "--" : val.format("%d");
@@ -525,7 +577,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             // the dominant element.
             var iconSize = (20.0 * scale).toNumber();
             var iconGap = (6 * scale).toNumber();
-            var bmp = WatchUi.loadResource(icon);
+            var bmp = _iconBmps[i];
             var textW = dc.getTextWidthInPixels(valStr, valFont);
             var totalW = iconSize + iconGap + textW;
             var startX = lx - totalW / 2;
@@ -564,95 +616,59 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         );
     }
 
-    // Maps a Weather condition code to a drawable resource ID, or null if unknown.
+    // Night = before sunrise / after sunset at the weather location, using
+    // the location the weather data already carries (no GPS, no extra
+    // permission). Falls back to 20:00–06:00 when that isn't available.
+    function isNightNow() as Lang.Boolean {
+        var clock = System.getClockTime();
+        if (clock.hour != _sunHourKey) {
+            _sunHourKey = clock.hour;
+            _sunrise = null;
+            _sunset = null;
+            try {
+                var cond = Weather.getCurrentConditions();
+                if (
+                    cond != null &&
+                    cond.observationLocationPosition != null &&
+                    Weather has :getSunrise
+                ) {
+                    var now = Time.now();
+                    var sr = Weather.getSunrise(
+                        cond.observationLocationPosition,
+                        now
+                    );
+                    var ss = Weather.getSunset(
+                        cond.observationLocationPosition,
+                        now
+                    );
+                    if (sr != null && ss != null) {
+                        _sunrise = sr.value();
+                        _sunset = ss.value();
+                    }
+                }
+            } catch (e) {
+                // Keep the fixed-hours fallback.
+            }
+        }
+        return ArchesLogic.isNight(
+            Time.now().value(),
+            _sunrise,
+            _sunset,
+            clock.hour
+        );
+    }
+
+    // Weather icon for the current condition, with a moon instead of the sun
+    // at night. Null if there's no data or the condition is unknown.
     function readWeatherIcon() {
         var comp = ArchesLogic.safeGetComplication(_weatherCompId);
         if (comp == null || comp.value == null) {
             return null;
         }
-
-        var c = comp.value.toNumber();
-
-        if (
-            c == Weather.CONDITION_CLEAR ||
-            c == Weather.CONDITION_FAIR ||
-            c == Weather.CONDITION_MOSTLY_CLEAR ||
-            c == Weather.CONDITION_PARTLY_CLEAR ||
-            c == Weather.CONDITION_THIN_CLOUDS
-        ) {
-            return Rez.Drawables.WeatherSun;
-        } else if (
-            c == Weather.CONDITION_CLOUDY ||
-            c == Weather.CONDITION_MOSTLY_CLOUDY ||
-            c == Weather.CONDITION_PARTLY_CLOUDY
-        ) {
-            return Rez.Drawables.WeatherCloud;
-        } else if (
-            c == Weather.CONDITION_FOG ||
-            c == Weather.CONDITION_HAZY ||
-            c == Weather.CONDITION_HAZE ||
-            c == Weather.CONDITION_MIST ||
-            c == Weather.CONDITION_DRIZZLE ||
-            c == Weather.CONDITION_SMOKE ||
-            c == Weather.CONDITION_DUST ||
-            c == Weather.CONDITION_SAND ||
-            c == Weather.CONDITION_SANDSTORM ||
-            c == Weather.CONDITION_VOLCANIC_ASH
-        ) {
-            return Rez.Drawables.WeatherFog;
-        } else if (c == Weather.CONDITION_HAIL) {
-            return Rez.Drawables.WeatherHail;
-        } else if (
-            c == Weather.CONDITION_RAIN ||
-            c == Weather.CONDITION_LIGHT_RAIN ||
-            c == Weather.CONDITION_HEAVY_RAIN ||
-            c == Weather.CONDITION_SCATTERED_SHOWERS ||
-            c == Weather.CONDITION_SHOWERS ||
-            c == Weather.CONDITION_LIGHT_SHOWERS ||
-            c == Weather.CONDITION_HEAVY_SHOWERS ||
-            c == Weather.CONDITION_CHANCE_OF_SHOWERS ||
-            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN ||
-            c == Weather.CONDITION_FREEZING_RAIN ||
-            c == Weather.CONDITION_UNKNOWN_PRECIPITATION
-        ) {
-            return Rez.Drawables.WeatherRain;
-        } else if (
-            c == Weather.CONDITION_SNOW ||
-            c == Weather.CONDITION_LIGHT_SNOW ||
-            c == Weather.CONDITION_HEAVY_SNOW ||
-            c == Weather.CONDITION_WINTRY_MIX ||
-            c == Weather.CONDITION_LIGHT_RAIN_SNOW ||
-            c == Weather.CONDITION_HEAVY_RAIN_SNOW ||
-            c == Weather.CONDITION_RAIN_SNOW ||
-            c == Weather.CONDITION_CHANCE_OF_SNOW ||
-            c == Weather.CONDITION_CHANCE_OF_RAIN_SNOW ||
-            c == Weather.CONDITION_CLOUDY_CHANCE_OF_SNOW ||
-            c == Weather.CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW ||
-            c == Weather.CONDITION_FLURRIES ||
-            c == Weather.CONDITION_SLEET ||
-            c == Weather.CONDITION_ICE_SNOW
-        ) {
-            return Rez.Drawables.WeatherSnow;
-        } else if (c == Weather.CONDITION_TORNADO) {
-            return Rez.Drawables.WeatherTornado;
-        } else if (
-            c == Weather.CONDITION_THUNDERSTORMS ||
-            c == Weather.CONDITION_SCATTERED_THUNDERSTORMS ||
-            c == Weather.CONDITION_CHANCE_OF_THUNDERSTORMS ||
-            c == Weather.CONDITION_HURRICANE ||
-            c == Weather.CONDITION_TROPICAL_STORM
-        ) {
-            return Rez.Drawables.WeatherThunderstorm;
-        } else if (
-            c == Weather.CONDITION_SQUALL ||
-            c == Weather.CONDITION_WINDY
-        ) {
-            return Rez.Drawables.WeatherWind;
-        } else if (c == Weather.CONDITION_ICE) {
-            return Rez.Drawables.WeatherIce;
-        }
-
-        return null;
+        return ArchesLogic.weatherIconFor(
+            (comp.value as Lang.Numeric).toNumber(),
+            isNightNow()
+        );
     }
 
     // ── Geometry ──────────────────────────────────────────────────────────────

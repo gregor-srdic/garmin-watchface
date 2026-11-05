@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <!-- Native 60x60 launcher icon (tools/gen_launcher_icon.py); overrides the 65x65 default. -->
+    <bitmap id="LauncherIcon" filename="../images/launcher_icon.png"/>
+</resources>

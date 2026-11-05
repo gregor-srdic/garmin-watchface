@@ -1,5 +1,6 @@
 using Toybox.Lang;
 using Toybox.Test;
+using Toybox.Weather;
 
 // Run: build with `monkeyc -t`, then `monkeydo <prg> fr965 /t` with the simulator open.
 
@@ -55,5 +56,64 @@ function displayTempNegativeToFahrenheit(logger as Test.Logger) as Lang.Boolean 
 (:test)
 function displayTempCelsiusRounds(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(ArchesLogic.displayTemp(21.6, false), 22);
+    return true;
+}
+
+// --- AM/PM label (12-hour mode) ---
+(:test)
+function ampmLabelMorning(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.ampmLabel(0), "AM");
+    Test.assertEqual(ArchesLogic.ampmLabel(11), "AM");
+    return true;
+}
+
+(:test)
+function ampmLabelAfternoon(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.ampmLabel(12), "PM");
+    Test.assertEqual(ArchesLogic.ampmLabel(23), "PM");
+    return true;
+}
+
+// --- Night detection (seconds since epoch; sunrise 06:30, sunset 19:45 on a day) ---
+(:test)
+function isNightUsesSunriseSunset(logger as Test.Logger) as Lang.Boolean {
+    var sunrise = 1000000 + 6 * 3600 + 1800;
+    var sunset = 1000000 + 19 * 3600 + 2700;
+    Test.assert(ArchesLogic.isNight(sunrise - 1, sunrise, sunset, 6));
+    Test.assert(!ArchesLogic.isNight(sunrise, sunrise, sunset, 6));
+    Test.assert(!ArchesLogic.isNight(sunset - 1, sunrise, sunset, 19));
+    Test.assert(ArchesLogic.isNight(sunset, sunrise, sunset, 19));
+    return true;
+}
+
+(:test)
+function isNightFallsBackToFixedHours(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(ArchesLogic.isNight(0, null, null, 5));
+    Test.assert(!ArchesLogic.isNight(0, null, null, 6));
+    Test.assert(!ArchesLogic.isNight(0, null, null, 19));
+    Test.assert(ArchesLogic.isNight(0, null, null, 20));
+    return true;
+}
+
+// --- Weather icon with night variant ---
+(:test)
+function weatherIconClearDayIsSun(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.weatherIconFor(Weather.CONDITION_CLEAR, false), Rez.Drawables.WeatherSun);
+    return true;
+}
+
+(:test)
+function weatherIconClearNightIsMoon(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.weatherIconFor(Weather.CONDITION_CLEAR, true), Rez.Drawables.WeatherMoon);
+    Test.assertEqual(ArchesLogic.weatherIconFor(Weather.CONDITION_THIN_CLOUDS, true), Rez.Drawables.WeatherMoon);
+    return true;
+}
+
+(:test)
+function weatherIconOtherConditionsIgnoreNight(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.weatherIconFor(Weather.CONDITION_CLOUDY, true), Rez.Drawables.WeatherCloud);
+    Test.assertEqual(ArchesLogic.weatherIconFor(Weather.CONDITION_RAIN, true), Rez.Drawables.WeatherRain);
+    // assertEqual can't take null (it calls .equals on it), so compare directly.
+    Test.assert(ArchesLogic.weatherIconFor(-1, false) == null);
     return true;
 }
