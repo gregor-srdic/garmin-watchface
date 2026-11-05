@@ -2,14 +2,13 @@
 
 A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix 8, Epix Pro, Venu 3/4 and others — see `manifest.xml`):
 
-- **4 arc gauges** around the bezel, each showing a fixed metric
+- **4 arc gauges** around the bezel, each showing a fixed metric as a value plus an uppercase caption (`BPM`, `STRESS`, `BODY`, `KCAL`) with a small icon. A metric at zero or with no data shows a start dot in its accent color
   - top-left (red) — heart rate
   - top-right (orange) — stress
   - bottom-left (blue) — body battery
   - bottom-right (rose) — calories
-- **Date** row above the time (e.g. `APR 28`; in 12-hour mode `APR 28 · PM`)
-- **Time** in the device's 12/24-hour format, displayed as pre-tinted bitmap digits (orange → rose → purple → blue)
-- **Weather** below the time — a condition icon plus temperature (e.g. `⛅ 18°`); clear skies show a moon after sunset
+- **Time** in the device's 12/24-hour format, displayed as bitmap digits with a continuous pink → purple → blue gradient
+- **One info row** below the time: `<DOW> · <MON> <D> [· AM/PM] · <icon> <temp>°` (e.g. `TUE · APR 28 · PM · ⛅ 18°`). The temperature part is omitted when unavailable; clear skies show a moon after sunset
 - **Always-on (low power) mode** with AMOLED burn-in protection
 
 ## Screenshots
@@ -29,26 +28,28 @@ monkeyc/
   source/
     ArchesWatchFaceApp.mc         AppBase entry point
     ArchesWatchFaceView.mc        All rendering logic
-    ArchesLogic.mc                Pure helpers (slot values, 12/24h, temperature)
+    ArchesLogic.mc                Pure helpers (slot values, 12/24h, temperature, date row text, arc fill end)
   test/
     ArchesLogicTest.mc            Unit tests for ArchesLogic
   resources/
-    strings/strings.xml           App name ("Arches")
+    strings/strings.xml           App name ("Arches") and the arc captions (BPM, STRESS, BODY, KCAL)
     drawables/drawables.xml       56 bitmap registrations
     images/
       launcher_icon.png           65×65 launcher icon (default size)
       hr.png, stress.png,
-        body.png, calories.png    Arc metric icons (flat, pre-tinted per slot)
+        body.png, calories.png    Arc metric icons (flat, full accent color per slot)
       weather_*.png               11 weather condition icons (incl. night moon)
-      h1_0..h1_9.png              Hours tens digit (orange-tinted)
-      h2_0..h2_9.png              Hours units digit (rose-tinted)
-      colon_colon.png             Colon separator (purple-tinted)
-      m1_0..m1_9.png              Minutes tens digit (purple-tinted)
-      m2_0..m2_9.png              Minutes units digit (blue-tinted)
+      h1_0..h1_9.png              Hours tens digit
+      h2_0..h2_9.png              Hours units digit
+      colon_colon.png             Colon separator
+      m1_0..m1_9.png              Minutes tens digit
+      m2_0..m2_9.png              Minutes units digit
+                                  (digit PNGs carry one continuous horizontal gradient across HH:MM)
   resources-icon60/, resources-icon70/
                                   Native 60×60 / 70×70 launcher icons (see monkey.jungle)
   tools/
-    gen_arc_icons.py              Regenerates the pre-tinted arc metric icons
+    gen_arc_icons.py              Regenerates the arc metric icons at full accent colors
+    gen_digit_gradient.py         Regenerates the 41 digit PNGs with the gradient (--check verifies vs HEAD alpha)
     gen_launcher_icon.py          Draws the launcher icon at a given size
     gen_moon_icon.py              Draws the night (moon) weather icon
 ```
@@ -84,38 +85,40 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 | Section | What it does |
 |---|---|
 | `initialize()` | Loads the digit resource tables and allocates the six complication IDs (guarded by `Toybox has :Complications`) |
-| `onLayout()` | Computes `scale`, `arcRadius`, `arcStroke`, `labelRadius` from actual screen size |
+| `onLayout()` | Computes `scale`, `arcRadius`, `arcStroke` (24 px at 454), `labelRadius` from actual screen size; caches the caption font (`Gfx.getVectorFont` at about 15 px × scale, falling back to `FONT_XTINY`) |
 | `readComplications()` | Reads the four arc complications each frame |
 | `readTemp()` | Reads the temperature complication (always Celsius); converts to °F if the device uses statute units, rounding after converting |
 | `readWeatherIcon()` | Maps `CONDITION_*` to a weather icon via `ArchesLogic.weatherIconFor()`; moon instead of sun at night |
 | `isNightNow()` | Sunrise/sunset at the weather location (refreshed hourly); falls back to 20:00–06:00 |
-| `drawArcs()` | Four progress arcs over a dim track, with filled-circle endcaps for a rounded look |
+| `drawArcs()` | Four progress arcs over a dim track (`0x1e1e1e`) with filled-circle endcaps, and an accent-colored start dot when a value is zero or there is no data (uses `ArchesLogic.arcFillEnd()`) |
 | `drawThickDesignArc()` | Single drawArc pass; strokes above `SPLIT_THRESHOLD` fall back to two overlapping passes (firmware seam workaround) |
 | `drawCardinalTicks()` | Short divider ticks at the four arc gaps |
-| `drawTime()` | Renders five bitmap images (h1, h2, colon, m1, m2); each position has its own tint. Bitmaps are cached and reload only when the minute changes |
-| `drawDateWeatherRow()` | Date string (above time) and temperature + weather icon (below time) |
-| `drawArcLabels()` | Metric icon + formatted integer value, above/below center per slot |
+| `drawTime()` | Renders five gradient bitmap images (h1, h2, colon, m1, m2), vertically centered together with the info row. Bitmaps are cached and reload only when the minute changes |
+| `drawDateWeatherRow()` | The single row below the time, built with `ArchesLogic.dateRowText()` and `tempText()`: date in dim gray, temperature in light gray, weather icon unmodified |
+| `drawArcLabels()` | Per slot: small icon, value (larger font, accent color) and uppercase caption (strings and vector font loaded once in onLayout, dim gray) |
 | `drawLowPower()` | Minimal always-on rendering (see below) |
 
 ### Always-on mode & AMOLED burn-in protection
 
 `onEnterSleep()` / `onExitSleep()` toggle a low-power flag; in low power `onUpdate()`
-delegates to `drawLowPower()`, which draws only a dim `HH:MM` string (plus a small AM/PM in 12-hour mode) and shifts it
+delegates to `drawLowPower()` (unchanged by the visual refresh, so always-on stays dim and no arcs, labels or row are drawn), which draws only a dim `HH:MM` string (plus a small AM/PM in 12-hour mode) and shifts it
 around a 5×5 pixel grid over 25 minutes so no pixel stays continuously lit.
 
 In full-power mode several measures reduce image retention:
 
-- All arc accent colors are dimmed to ~65% of the original design values (kept in
-  sync with `BRIGHTNESS` in `tools/gen_arc_icons.py`).
+- Active mode uses the full design accent colors (the earlier dimming was removed);
+  the burn-in budget relies on the dim always-on mode and the drift measures below.
 - The cardinal ticks drift radially outward by 0–4 px on a 5-minute cycle.
 - The arc value labels drift vertically by ±2 px on a 5-minute cycle, mirrored
   about the screen center.
 
 ### Why pre-tinted bitmap digits?
 
-Monkey C has no gradient fill for text. Each digit image is pre-colored at design
-time, giving the visual impression of an `orange → rose → purple → blue` gradient
-across the clock face with no runtime cost.
+Monkey C has no gradient fill for text. Each digit image is colored at design
+time by `tools/gen_digit_gradient.py`, which applies one continuous horizontal
+`#ff8fa3 → #b48cff → #6aa8ff` gradient across the whole `HH:MM` layout (colors match at slot
+joins) while keeping each PNG's original size and alpha. The generator hard-codes the
+`drawTime()` slot widths, so keep the two in sync.
 
 ## Required permissions
 
@@ -151,10 +154,10 @@ monkeydo test.prg fr965 /t
 | HTML feature | Monkey C approach |
 |---|---|
 | Smooth anti-aliased arcs | `dc.setAntiAlias(true)` + filled circles for rounded endcaps |
-| Wide arc strokes | Single pass at 24px; two-pass fallback above `SPLIT_THRESHOLD` |
-| CSS `linear-gradient` time text | Pre-tinted bitmap digit images per position |
+| Wide arc strokes | Single pass at 24px (scaled); two-pass fallback above `SPLIT_THRESHOLD` |
+| CSS `linear-gradient` time text | Gradient-colored bitmap digit images (`gen_digit_gradient.py`) |
 | Glow under arcs | Omitted — requires offscreen buffers and hurts AMOLED battery |
-| `oklch()` colors | Approximated to nearest sRGB hex, then dimmed to ~65% for burn-in |
+| `oklch()` colors | Approximated to nearest sRGB hex |
 | Sun / weather glyphs | `CONDITION_*` constants mapped to 10 weather PNG icons |
 | Stress / body / calorie values | Coerced via `.toNumber()` / `"%d"` to avoid `35.000000` strings |
 

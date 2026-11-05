@@ -2,5 +2,9 @@
 <resources>
     <strings>
         <string id="AppName">Arches</string>
+        <string id="CaptionBpm">BPM</string>
+        <string id="CaptionStress">STRESS</string>
+        <string id="CaptionBody">BODY</string>
+        <string id="CaptionKcal">KCAL</string>
     </strings>
 </resources>

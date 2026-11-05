@@ -13,18 +13,14 @@ SS = 8          # supersample factor
 SIZE = 48       # final canvas size
 OUT = os.path.join(os.path.dirname(__file__), "..", "resources", "images")
 
-# Slot accent colors from ArchesWatchFaceView.mc (original design values;
-# BRIGHTNESS below must match the dimming applied to the COLOR_ARC_* constants)
-BRIGHTNESS = 0.65
-
+# Slot accent colors from ArchesWatchFaceView.mc (full design colors; active
+# mode draws icons at full saturation, always-on mode draws no icons).
 COLORS = {
     "hr": (0xFF, 0x4D, 0x4D),        # COLOR_ARC_3 red
     "stress": (0xFF, 0xA0, 0x40),    # COLOR_ARC_0 orange
     "body": (0x4A, 0x9E, 0xFF),      # COLOR_ARC_2 blue
     "calories": (0xFF, 0x7D, 0xA3),  # COLOR_ARC_1 pink
 }
-
-COLORS = {k: tuple(int(c * BRIGHTNESS) for c in v) for k, v in COLORS.items()}
 
 
 def canvas():
