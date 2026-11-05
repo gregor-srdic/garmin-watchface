@@ -6,13 +6,12 @@ using Toybox.Time;
 using Toybox.Time.Gregorian;
 using Toybox.WatchUi;
 using Toybox.Weather;
-using Toybox.ActivityMonitor;
 using Toybox.Complications;
 
-// Forerunner Watch Face — round AMOLED, 454×454
+// Arches Watch Face — round AMOLED, 454×454
 // Layout: 4 arc gauges around the bezel + bitmap time digits + date/weather row
 
-class ForerunnerWatchFaceView extends WatchUi.WatchFace {
+class ArchesWatchFaceView extends WatchUi.WatchFace {
     // ── Palette ───────────────────────────────────────────────────────────────
 
     private const COLOR_BG = 0x000000;
@@ -113,9 +112,9 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
                 Rez.Drawables.DigitM2_9,
             ] as Lang.Array<Lang.ResourceId>;
 
-        // Allocate 4 complication slot IDs (0–3). Users assign a data field to each
-        // slot via the Garmin Connect watch face settings. Slots map to arc positions:
-        // 0=top-right, 1=bottom-right, 2=bottom-left, 3=top-left.
+        // One complication per arc, fixed by type (not user-configurable).
+        // Slots map to arc positions: 0=top-right (stress), 1=bottom-right
+        // (calories), 2=bottom-left (body battery), 3=top-left (heart rate).
         // Guard required: Complications is unsupported on older simulators/firmware.
         _compIds = null;
         _tempCompId = null;
@@ -140,17 +139,7 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
             _weatherCompId = new Complications.Id(
                 Complications.COMPLICATION_TYPE_CURRENT_WEATHER
             );
-            if (Complications has :registerComplicationChangeCallback) {
-                Complications.registerComplicationChangeCallback(
-                    method(:onComplicationChanged)
-                );
-            }
         }
-    }
-
-    // Triggered when the user reassigns a slot in Garmin Connect.
-    function onComplicationChanged(complicationId as Complications.Id) as Void {
-        WatchUi.requestUpdate();
     }
 
     function onLayout(dc) {
@@ -209,7 +198,10 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     function drawLowPower(dc) {
         var clock = System.getClockTime();
         var t = Lang.format("$1$:$2$", [
-            clock.hour.format("%02d"),
+            ArchesLogic.hourString(
+                clock.hour,
+                System.getDeviceSettings().is24Hour
+            ),
             clock.min.format("%02d"),
         ]);
 
@@ -233,36 +225,10 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         var comps = new Lang.Array<Complications.Complication?>[4];
         if (_compIds != null) {
             for (var i = 0; i < 4; i++) {
-                comps[i] = Complications.getComplication(_compIds[i]);
+                comps[i] = ArchesLogic.safeGetComplication(_compIds[i]);
             }
         }
         return comps;
-    }
-
-    // Returns a reasonable arc-fill maximum for each known complication type.
-    function getCompMax(type) {
-        if (type == Complications.COMPLICATION_TYPE_HEART_RATE) {
-            return 200;
-        }
-        if (type == Complications.COMPLICATION_TYPE_STRESS) {
-            return 100;
-        }
-        if (type == Complications.COMPLICATION_TYPE_BODY_BATTERY) {
-            return 100;
-        }
-        if (type == Complications.COMPLICATION_TYPE_CALORIES) {
-            return 5000;
-        }
-        if (type == Complications.COMPLICATION_TYPE_STEPS) {
-            return 10000;
-        }
-        if (type == Complications.COMPLICATION_TYPE_FLOORS_CLIMBED) {
-            return 50;
-        }
-        if (type == Complications.COMPLICATION_TYPE_WEEKLY_RUN_DISTANCE) {
-            return 50000;
-        }
-        return 100;
     }
 
     // ── Arcs ──────────────────────────────────────────────────────────────────
@@ -279,21 +245,9 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
             var startD = arcStarts[i];
             var endD = arcEnds[i];
             var color = colors[i];
-            var value = 0;
-            var maxV = 100;
-
-            var comp = comps[i];
-            var compType = comp.getType();
-            if (comp != null && comp.value != null) {
-                value = comp.value.toNumber();
-                if (compType == Complications.COMPLICATION_TYPE_CALORIES) {
-                    var info = ActivityMonitor.getInfo();
-                    if (info.calories != null) {
-                        value = info.calories;
-                    }
-                }
-                maxV = getCompMax(compType);
-            }
+            var reading = ArchesLogic.slotReading(comps[i]);
+            var value = reading[0];
+            var maxV = reading[1];
 
             var fillEnd = startD + ((endD - startD) * value) / maxV;
             if (fillEnd < startD) {
@@ -332,14 +286,18 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
         dc.fillCircle(Math.round(x), Math.round(y), arcStroke / 2.0 - 1);
     }
 
-    // Device firmware caps the hardware pen width for drawArc around 16px and
-    // renders wider strokes as two split passes whose anti-aliased seam shows
-    // the color underneath (the simulator draws it in one pass, so it only
-    // shows on the watch). Split thick strokes ourselves into two concentric
-    // passes that overlap by several fully-opaque pixels, so the seam falls on
-    // same-color solid pixels and disappears.
+    // Draws a thick arc. Normally a single drawArc pass: on current firmware the
+    // 24px stroke renders cleanly in one pass on the watch (verified on device).
+    // Strokes wider than SPLIT_THRESHOLD fall back to two concentric passes that
+    // overlap by several fully-opaque pixels. That fallback exists because some
+    // firmware split wide strokes into two passes with a visible anti-aliased
+    // seam; overlapping our own passes puts the seam on same-color pixels.
+    // The threshold was 16px; it was raised deliberately once the single pass
+    // proved seam-free. Lower it again if the seam reappears on a device.
+    private const SPLIT_THRESHOLD = 240;
+
     function drawThickDesignArc(dc, r, stroke, startDesign, endDesign) {
-        if (stroke <= 240) {
+        if (stroke <= SPLIT_THRESHOLD) {
             dc.setPenWidth(stroke);
             drawDesignArc(dc, cx, cy, r, startDesign, endDesign);
             return;
@@ -398,7 +356,10 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
 
     function drawTime(dc) {
         var clock = System.getClockTime();
-        var h = clock.hour.format("%02d");
+        var h = ArchesLogic.hourString(
+            clock.hour,
+            System.getDeviceSettings().is24Hour
+        );
         var m = clock.min.format("%02d");
 
         // Position index: 0=h1, 1=h2, 2=colon, 3=m1, 4=m2
@@ -472,13 +433,14 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
 
         dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
 
-        // Date — centered in the gap above the time block
+        // Date — text sits just above the midpoint of the gap above the time
+        // block (its bottom edge on the midpoint), mirroring the weather row
         var font = Gfx.FONT_SYSTEM_XTINY;
         var fontH = Gfx.getFontHeight(font);
         var dateY = cy - timeRenderH / 2 - segmentHeight / 2 - fontH;
         dc.drawText(cx, dateY, font, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
 
-        // Temperature + icon — centered in the gap below the time block
+        // Temperature + icon — top edge on the midpoint of the gap below the time block
         var temp = readTemp();
         if (temp != null) {
             font = Gfx.FONT_XTINY;
@@ -542,20 +504,8 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
             var above = aboveCenter[i];
             var icon = icons[i];
 
-            var valStr = "--";
-            if (comp != null) {
-                if (comp.value != null) {
-                    var val = comp.value.toNumber();
-                    var compType = comp.getType();
-                    if (compType == Complications.COMPLICATION_TYPE_CALORIES) {
-                        var info = ActivityMonitor.getInfo();
-                        if (info.calories != null) {
-                            val = info.calories;
-                        }
-                    }
-                    valStr = val.format("%d");
-                }
-            }
+            var val = ArchesLogic.slotValue(comp);
+            var valStr = val == null ? "--" : val.format("%d");
             var lx = polar(cx, cy, labelRadius, midDeg)[0];
             // anchor = edge of the label block closest to the time display
             var anchor = cy + (above ? -1 : 1) * (timeRenderH / 2 + pad);
@@ -602,30 +552,22 @@ class ForerunnerWatchFaceView extends WatchUi.WatchFace {
     // ── Weather helpers ───────────────────────────────────────────────────────
 
     // Returns current temperature in device-preferred units, or null if unavailable.
+    // The complication always reports Celsius (Float since API 5.0).
     function readTemp() {
-        if (_tempCompId == null) {
+        var comp = ArchesLogic.safeGetComplication(_tempCompId);
+        if (comp == null || comp.value == null) {
             return null;
         }
-        var comp = Complications.getComplication(_tempCompId);
-        if (comp.value == null) {
-            return null;
-        }
-        var t = comp.value.toNumber();
-        if (
+        return ArchesLogic.displayTemp(
+            comp.value as Lang.Numeric,
             System.getDeviceSettings().temperatureUnits == System.UNIT_STATUTE
-        ) {
-            t = (t * 9) / 5 + 32; // °C → °F
-        }
-        return t;
+        );
     }
 
     // Maps a Weather condition code to a drawable resource ID, or null if unknown.
     function readWeatherIcon() {
-        if (_weatherCompId == null) {
-            return null;
-        }
-        var comp = Complications.getComplication(_weatherCompId);
-        if (comp.value == null) {
+        var comp = ArchesLogic.safeGetComplication(_weatherCompId);
+        if (comp == null || comp.value == null) {
             return null;
         }
 
