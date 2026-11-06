@@ -9,8 +9,9 @@ using Toybox.Weather;
 using Toybox.Complications;
 
 // Arches Watch Face — round AMOLED, 454×454
-// Layout: 4 arc gauges around the bezel, bitmap time digits, and
-// one date/weather row below the time. Each arc has a value + caption label.
+// Layout: 4 arc gauges around the bezel, bitmap time digits centered on
+// screen, date above the time and weather below it. Each arc has an
+// icon + value label.
 
 class ArchesWatchFaceView extends WatchUi.WatchFace {
     // ── Palette ───────────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     private const COLOR_BG = 0x000000;
     private const COLOR_TRACK = 0x1e1e1e;
     private const COLOR_DIM = 0x8a8a8a;
-    private const COLOR_TEXT = 0xcccccc; // temperature in the date/weather row
+    private const COLOR_TEXT = 0xcccccc; // temperature below the time
     private const COLOR_DIVIDER = 0x444444;
 
     // Arc accent colors — fixed per position, independent of complication type.
@@ -40,12 +41,12 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     private var labelRadius;
     private var scale;
 
-    // Vertical layout shared by time, date/weather row and arc labels.
+    // Vertical layout shared by time, date, weather and arc labels.
     private var timeRenderH;
     private var rowH;
-    private var rowGap;
     private var timeTop;
-    private var rowY;
+    private var dateY;
+    private var weatherY;
 
     // ── Digit resources ───────────────────────────────────────────────────────
 
@@ -66,18 +67,15 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     // ── Bitmap caches ─────────────────────────────────────────────────────────
     // The face redraws every second for a few seconds after a wrist raise.
     // Loading bitmaps on every redraw wastes battery, so:
-    //   - metric icons, captions and the colon load once,
+    //   - metric icons and the colon load once,
     //   - the four digit bitmaps reload only when the shown time changes,
     //   - the weather icon reloads only when the condition (or day/night) changes.
     private var _iconBmps as Lang.Array? = null;
-    private var _capFont = null;
-    private var _capFontH = 0;
     private var _colonBmp = null;
     private var _timeKey as Lang.String? = null;
     private var _digitBmps as Lang.Array? = null;
     private var _weatherIconRes = null;
     private var _weatherBmp = null;
-    private var _captions as Lang.Array<Lang.String>? = null;
 
     // Sunrise/sunset (seconds since epoch) for the weather location, refreshed
     // at most once per hour. Null when unavailable (fixed-hours fallback).
@@ -184,30 +182,19 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         arcRadius = screenW / 2 - arcStroke / 2;
         labelRadius = (130.0 * scale).toNumber();
 
-        // The time block plus the date/weather row below it is centered on cy.
+        // Time centered on cy. Date sits just above the midpoint of the gap
+        // above the time (bottom edge on the midpoint); weather mirrors it
+        // below (top edge on the midpoint of the gap below the time).
         timeRenderH = (108.0 * scale).toNumber();
         rowH = Gfx.getFontHeight(Gfx.FONT_XTINY);
-        rowGap = Math.round(6.0 * scale).toNumber();
-        timeTop = cy - (timeRenderH + rowGap + rowH) / 2;
-        rowY = timeTop + timeRenderH + rowGap;
+        timeTop = cy - timeRenderH / 2;
+        var segmentHeight = cy - timeRenderH / 2 - arcStroke;
+        dateY = timeTop - segmentHeight / 2 - rowH;
+        weatherY = timeTop + timeRenderH + segmentHeight / 2;
 
         if (dc has :setAntiAlias) {
             dc.setAntiAlias(true);
         }
-
-        // Small caption font (~15px at 454): cached once; falls back to
-        // FONT_XTINY when vector fonts are unavailable.
-        _capFont = null;
-        if (Gfx has :getVectorFont) {
-            _capFont = Gfx.getVectorFont({
-                :face => ["RobotoCondensedRegular", "RobotoRegular", "Roboto"],
-                :size => Math.round(15.0 * scale).toNumber(),
-            });
-        }
-        if (_capFont == null) {
-            _capFont = Gfx.FONT_XTINY;
-        }
-        _capFontH = Gfx.getFontHeight(_capFont);
     }
 
     function onShow() {}
@@ -237,7 +224,8 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         drawArcs(dc, comps);
         drawCardinalTicks(dc);
         drawTime(dc);
-        drawDateWeatherRow(dc);
+        drawDate(dc);
+        drawWeather(dc);
         drawArcLabels(dc, comps);
     }
 
@@ -492,9 +480,9 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         }
     }
 
-    // ── Date + weather row ────────────────────────────────────────────────────
+    // ── Date (above the time) and weather (below the time) ────────────────
 
-    function drawDateWeatherRow(dc) {
+    function drawDate(dc) {
         var info = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
         var is24Hour = System.getDeviceSettings().is24Hour;
         var dateStr = ArchesLogic.dateRowText(
@@ -503,48 +491,43 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             info.day,
             is24Hour ? null : ArchesLogic.ampmLabel(System.getClockTime().hour)
         );
-        var tempStr = ArchesLogic.tempText(readTemp());
-        var font = Gfx.FONT_XTINY;
+        dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
+        dc.drawText(cx, dateY, Gfx.FONT_XTINY, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
+    }
 
+    function drawWeather(dc) {
+        var tempStr = ArchesLogic.tempText(readTemp());
         if (tempStr == null) {
-            dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
-            dc.drawText(cx, rowY, font, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
             return;
         }
-
-        var datePart = dateStr + ArchesLogic.ROW_SEP;
+        var font = Gfx.FONT_XTINY;
         var iconSize = rowH;
         var gap = (4 * scale).toNumber();
         var iconRes = readWeatherIcon();
-        var dateW = dc.getTextWidthInPixels(datePart, font);
         var tempW = dc.getTextWidthInPixels(tempStr, font);
 
-        var totalW = dateW + tempW;
+        var totalW = tempW;
         if (iconRes != null) {
             totalW += iconSize + gap;
         }
         var x = cx - totalW / 2;
-
-        dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
-        dc.drawText(x, rowY, font, datePart, Gfx.TEXT_JUSTIFY_LEFT);
-        x += dateW;
 
         if (iconRes != null) {
             if (iconRes != _weatherIconRes) {
                 _weatherBmp = WatchUi.loadResource(iconRes);
                 _weatherIconRes = iconRes;
             }
-            drawScaledBitmap(dc, _weatherBmp, x, rowY, iconSize, iconSize);
+            drawScaledBitmap(dc, _weatherBmp, x, weatherY, iconSize, iconSize);
             x += iconSize + gap;
         }
         dc.setColor(COLOR_TEXT, Gfx.COLOR_TRANSPARENT);
-        dc.drawText(x, rowY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
+        dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
     }
 
     // ── Arc value labels ──────────────────────────────────────────────────────
 
-    // Each slot shows the value (accent color) over a caption row: full-color
-    // icon + dim uppercase caption, centered on the arc's mid-angle.
+    // Each slot shows a full-color icon in front of the value (accent color),
+    // centered on the arc's mid-angle.
     function drawArcLabels(
         dc as Gfx.Dc,
         comps as Lang.Array<Complications.Complication?>
@@ -561,9 +544,9 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
 
         var valFont = Gfx.FONT_TINY;
         var valFontH = Gfx.getFontHeight(valFont);
-        var capFont = _capFont;
-        var capFontH = _capFontH;
-        var blockH = valFontH + capFontH;
+        // Icon about as tall as the numerals' visible height.
+        var iconSize = (valFontH * 0.8).toNumber();
+        var iconGap = (6 * scale).toNumber();
         var pad = (10 * scale).toNumber();
 
         // AMOLED wear protection: drift the labels vertically by -2..+2 px on
@@ -579,15 +562,6 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
                 _iconBmps[j] = WatchUi.loadResource(icons[j]);
             }
         }
-        if (_captions == null) {
-            _captions =
-                [
-                    WatchUi.loadResource(Rez.Strings.CaptionStress),
-                    WatchUi.loadResource(Rez.Strings.CaptionKcal),
-                    WatchUi.loadResource(Rez.Strings.CaptionBody),
-                    WatchUi.loadResource(Rez.Strings.CaptionBpm),
-                ] as Lang.Array<Lang.String>;
-        }
 
         for (var i = 0; i < 4; i++) {
             var above = aboveCenter[i];
@@ -596,32 +570,33 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             var valStr = val == null ? "--" : val.format("%d");
             var lx = polar(cx, cy, labelRadius, midAngles[i])[0];
 
-            // Block edge closest to the time display: top labels end above
-            // the time, bottom labels start below the date/weather row.
-            var blockTop;
+            // Row edge closest to the time display: top labels end above
+            // the time, bottom labels start below it.
+            var valY;
             if (above) {
-                blockTop = timeTop - pad - blockH - drift;
+                valY = timeTop - pad - valFontH - drift;
             } else {
-                blockTop = rowY + rowH + pad + drift;
+                valY = timeTop + timeRenderH + pad + drift;
             }
 
+            // Icon + gap + value, centered on lx.
+            var textW = dc.getTextWidthInPixels(valStr, valFont);
+            var startX = lx - (iconSize + iconGap + textW) / 2;
+
+            drawScaledBitmap(
+                dc,
+                _iconBmps[i],
+                startX,
+                valY + (valFontH - iconSize) / 2,
+                iconSize,
+                iconSize
+            );
             dc.setColor(colors[i], Gfx.COLOR_TRANSPARENT);
-            dc.drawText(lx, blockTop, valFont, valStr, Gfx.TEXT_JUSTIFY_CENTER);
-
-            // Caption row: icon + gap + caption, centered on lx.
-            var capY = blockTop + valFontH;
-            var iconGap = (4 * scale).toNumber();
-            var caption = _captions[i];
-            var capW = dc.getTextWidthInPixels(caption, capFont);
-            var startX = lx - (capFontH + iconGap + capW) / 2;
-
-            drawScaledBitmap(dc, _iconBmps[i], startX, capY, capFontH, capFontH);
-            dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
             dc.drawText(
-                startX + capFontH + iconGap,
-                capY,
-                capFont,
-                caption,
+                startX + iconSize + iconGap,
+                valY,
+                valFont,
+                valStr,
                 Gfx.TEXT_JUSTIFY_LEFT
             );
         }

@@ -2,13 +2,14 @@
 
 A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix 8, Epix Pro, Venu 3/4 and others — see `manifest.xml`):
 
-- **4 arc gauges** around the bezel, each showing a fixed metric as a value plus an uppercase caption (`BPM`, `STRESS`, `BODY`, `KCAL`) with a small icon. A metric at zero or with no data shows a start dot in its accent color
+- **4 arc gauges** around the bezel, each showing a fixed metric as an icon in front of its value. A metric at zero or with no data shows a start dot in its accent color
   - top-left (red) — heart rate
   - top-right (orange) — stress
   - bottom-left (blue) — body battery
   - bottom-right (rose) — calories
 - **Time** in the device's 12/24-hour format, displayed as bitmap digits with a continuous pink → purple → blue gradient
-- **One info row** below the time: `<DOW> · <MON> <D> [· AM/PM] · <icon> <temp>°` (e.g. `TUE · APR 28 · PM · ⛅ 18°`). The temperature part is omitted when unavailable; clear skies show a moon after sunset
+- **Date** above the time: `<DOW> · <MON> <D> [· AM/PM]` (e.g. `TUE · APR 28 · PM`)
+- **Weather** below the time: `<icon> <temp>°` (e.g. `⛅ 18°`). Omitted when unavailable; clear skies show a moon after sunset
 - **Always-on (low power) mode** with AMOLED burn-in protection
 
 ## Screenshots
@@ -32,7 +33,7 @@ monkeyc/
   test/
     ArchesLogicTest.mc            Unit tests for ArchesLogic
   resources/
-    strings/strings.xml           App name ("Arches") and the arc captions (BPM, STRESS, BODY, KCAL)
+    strings/strings.xml           App name ("Arches")
     drawables/drawables.xml       56 bitmap registrations
     images/
       launcher_icon.png           65×65 launcher icon (default size)
@@ -85,7 +86,7 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 | Section | What it does |
 |---|---|
 | `initialize()` | Loads the digit resource tables and allocates the six complication IDs (guarded by `Toybox has :Complications`) |
-| `onLayout()` | Computes `scale`, `arcRadius`, `arcStroke` (24 px at 454), `labelRadius` from actual screen size; caches the caption font (`Gfx.getVectorFont` at about 15 px × scale, falling back to `FONT_XTINY`) |
+| `onLayout()` | Computes `scale`, `arcRadius`, `arcStroke` (24 px at 454), `labelRadius` from actual screen size |
 | `readComplications()` | Reads the four arc complications each frame |
 | `readTemp()` | Reads the temperature complication (always Celsius); converts to °F if the device uses statute units, rounding after converting |
 | `readWeatherIcon()` | Maps `CONDITION_*` to a weather icon via `ArchesLogic.weatherIconFor()`; moon instead of sun at night |
@@ -93,9 +94,10 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 | `drawArcs()` | Four progress arcs over a dim track (`0x1e1e1e`) with filled-circle endcaps, and an accent-colored start dot when a value is zero or there is no data (uses `ArchesLogic.arcFillEnd()`) |
 | `drawThickDesignArc()` | Single drawArc pass; strokes above `SPLIT_THRESHOLD` fall back to two overlapping passes (firmware seam workaround) |
 | `drawCardinalTicks()` | Short divider ticks at the four arc gaps |
-| `drawTime()` | Renders five gradient bitmap images (h1, h2, colon, m1, m2), vertically centered together with the info row. Bitmaps are cached and reload only when the minute changes |
-| `drawDateWeatherRow()` | The single row below the time, built with `ArchesLogic.dateRowText()` and `tempText()`: date in dim gray, temperature in light gray, weather icon unmodified |
-| `drawArcLabels()` | Per slot: small icon, value (larger font, accent color) and uppercase caption (strings and vector font loaded once in onLayout, dim gray) |
+| `drawTime()` | Renders five gradient bitmap images (h1, h2, colon, m1, m2), vertically centered on screen. Bitmaps are cached and reload only when the minute changes |
+| `drawDate()` | Date line above the time, built with `ArchesLogic.dateRowText()`, in dim gray |
+| `drawWeather()` | Weather icon (unmodified) + temperature (`ArchesLogic.tempText()`, light gray) below the time |
+| `drawArcLabels()` | Per slot: full-color icon (about 80% of the value font height) in front of the value (`FONT_TINY`, accent color) |
 | `drawLowPower()` | Minimal always-on rendering (see below) |
 
 ### Always-on mode & AMOLED burn-in protection

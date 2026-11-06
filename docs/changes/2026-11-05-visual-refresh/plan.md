@@ -67,6 +67,16 @@ match `drawTime()`. T3 must not change `dwFull`, `dwColon` or `kern`.
   Arc geometry reverted to the original (24*scale stroke, original radius, no outer ring, track 0x1e1e1e, original ticks/gaps), so the 1-degree
   inset and `arcStroke/2.0` cap radius above no longer apply. Kept: full-saturation accents (R1) and the zero/no-data start dot (R6).
 
+- User decision 2026-11-05 (after the visual refresh): icons and captions were too small. Captions were removed (R2 replaced),
+  along with the caption strings and the vector caption font. Each slot is now a single row: a full-color icon (0.8 × value font height)
+  in front of the value (FONT_TINY, accent color), as before the refresh but with a larger icon.
+
+- User decision 2026-11-06: date and weather separated again and moved back to their pre-refresh positions (R3 replaced).
+  The time is centered on cy again; the date (with weekday, `MON · APR 27 [· PM]`) sits above the time and the weather
+  (`☀ 58°`) below it, each at the midpoint of the gap between the time and the arcs, as before the refresh. Kept from the
+  refresh: FONT_XTINY, dim-gray date, light-gray temperature. `drawDateWeatherRow()` split into `drawDate()` and `drawWeather()`.
+  Bottom arc labels anchor to the bottom of the time again.
+
 ## Results
 - T1: done. `monkeyc -t fr965` BUILD SUCCESSFUL.
 - T2: done. Verify output: "OK: 41 digit PNGs match HEAD alpha and gradient; icon mismatches: []". Preview at `.agent-runs/visual-refresh/t2-preview.png`.

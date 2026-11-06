@@ -7,7 +7,7 @@ using Toybox.Weather;
 // Pure helpers used by the view. Kept free of drawing code so they can be
 // unit-tested (see test/ArchesLogicTest.mc).
 module ArchesLogic {
-    // Separator between the parts of the date/weather row.
+    // Separator between the parts of the date line.
     const ROW_SEP = " · ";
 
     // "MON · APR 27", plus " · PM" in 12-hour mode.
