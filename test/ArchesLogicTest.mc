@@ -117,3 +117,83 @@ function weatherIconOtherConditionsIgnoreNight(logger as Test.Logger) as Lang.Bo
     Test.assert(ArchesLogic.weatherIconFor(-1, false) == null);
     return true;
 }
+
+// Visual refresh: single date row and temperature text.
+(:test)
+function dateRowText24h(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 27, null), "MON · APR 27");
+    return true;
+}
+
+(:test)
+function dateRowText12h(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 27, "PM"), "MON · APR 27 · PM");
+    return true;
+}
+
+(:test)
+function dateRowTextUpperCasesInput(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText("tue", "may", 3, null), "TUE · MAY 3");
+    return true;
+}
+
+(:test)
+function dateRowTextSingleDigitDay(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 7, "PM"), "MON · APR 7 · PM");
+    return true;
+}
+
+(:test)
+function tempTextPositive(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.tempText(58), "58°");
+    return true;
+}
+
+(:test)
+function tempTextNegative(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.tempText(-3), "-3°");
+    return true;
+}
+
+(:test)
+function tempTextZero(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.tempText(0), "0°");
+    return true;
+}
+
+// assertEqual(null, null) is unreliable on device, so compare explicitly.
+(:test)
+function tempTextNull(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(ArchesLogic.tempText(null) == null);
+    return true;
+}
+
+(:test)
+function arcFillEndZero(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.arcFillEnd(5, 85, 0, 100), 5);
+    return true;
+}
+
+(:test)
+function arcFillEndHalf(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.arcFillEnd(5, 85, 50, 100), 45);
+    return true;
+}
+
+(:test)
+function arcFillEndClampsOverMax(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.arcFillEnd(5, 85, 150, 100), 85);
+    return true;
+}
+
+(:test)
+function arcFillEndClampsNegative(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.arcFillEnd(5, 85, -10, 100), 5);
+    return true;
+}
+
+(:test)
+function arcFillEndZeroMax(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.arcFillEnd(5, 85, 10, 0), 5);
+    return true;
+}

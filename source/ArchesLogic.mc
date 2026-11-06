@@ -7,6 +7,52 @@ using Toybox.Weather;
 // Pure helpers used by the view. Kept free of drawing code so they can be
 // unit-tested (see test/ArchesLogicTest.mc).
 module ArchesLogic {
+    // Separator between the parts of the date line.
+    const ROW_SEP = " · ";
+
+    // "MON · APR 27", plus " · PM" in 12-hour mode.
+    function dateRowText(
+        dow as Lang.String,
+        month as Lang.String,
+        day as Lang.Number,
+        ampm as Lang.String?
+    ) as Lang.String {
+        var s = dow.toUpper() + ROW_SEP + month.toUpper() + " " + day;
+        if (ampm != null) {
+            s = s + ROW_SEP + ampm;
+        }
+        return s;
+    }
+
+    // "58°", or null when there is no temperature.
+    function tempText(temp as Lang.Number?) as Lang.String? {
+        if (temp == null) {
+            return null;
+        }
+        return temp + "°";
+    }
+
+    // End degree of an arc filled value/maxV of the way from startD to endD,
+    // clamped to [startD, endD].
+    function arcFillEnd(
+        startD as Lang.Number,
+        endD as Lang.Number,
+        value as Lang.Number,
+        maxV as Lang.Number
+    ) as Lang.Number {
+        if (maxV <= 0) {
+            return startD;
+        }
+        var e = startD + ((endD - startD) * value) / maxV;
+        if (e < startD) {
+            return startD;
+        }
+        if (e > endD) {
+            return endD;
+        }
+        return e;
+    }
+
     // Reads a complication, or returns null when the device doesn't provide
     // this type. getComplication throws ComplicationNotFoundException rather
     // than returning null, which would otherwise crash the face.

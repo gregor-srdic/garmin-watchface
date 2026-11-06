@@ -9,23 +9,26 @@ using Toybox.Weather;
 using Toybox.Complications;
 
 // Arches Watch Face — round AMOLED, 454×454
-// Layout: 4 arc gauges around the bezel + bitmap time digits + date/weather row
+// Layout: 4 arc gauges around the bezel, bitmap time digits centered on
+// screen, date above the time and weather below it. Each arc has an
+// icon + value label.
 
 class ArchesWatchFaceView extends WatchUi.WatchFace {
     // ── Palette ───────────────────────────────────────────────────────────────
 
     private const COLOR_BG = 0x000000;
-    private const COLOR_TRACK = 0x1e1e1e; // 65% of the original 0x2f2f2f
+    private const COLOR_TRACK = 0x1e1e1e;
     private const COLOR_DIM = 0x8a8a8a;
+    private const COLOR_TEXT = 0xcccccc; // temperature below the time
     private const COLOR_DIVIDER = 0x444444;
 
     // Arc accent colors — fixed per position, independent of complication type.
-    // Dimmed to 65% of the original design values to slow AMOLED image
-    // retention / burn-in; keep in sync with BRIGHTNESS in tools/gen_arc_icons.py.
-    private const COLOR_ARC_0 = 0xa56829; // top-right (65% of 0xffa040)
-    private const COLOR_ARC_1 = 0xa55169; // bottom-right (65% of 0xff7da3)
-    private const COLOR_ARC_2 = 0x3066a5; // bottom-left (65% of 0x4a9eff)
-    private const COLOR_ARC_3 = 0xa53232; // top-left (65% of 0xff4d4d)
+    // Full design color in active mode; always-on mode stays dim because
+    // the low-power screen draws no arcs, only a gray time.
+    private const COLOR_ARC_0 = 0xffa040; // top-right (stress)
+    private const COLOR_ARC_1 = 0xff7da3; // bottom-right (calories)
+    private const COLOR_ARC_2 = 0x4a9eff; // bottom-left (body battery)
+    private const COLOR_ARC_3 = 0xff4d4d; // top-left (heart rate)
 
     // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -37,6 +40,13 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     private var arcStroke;
     private var labelRadius;
     private var scale;
+
+    // Vertical layout shared by time, date, weather and arc labels.
+    private var timeRenderH;
+    private var rowH;
+    private var timeTop;
+    private var dateY;
+    private var weatherY;
 
     // ── Digit resources ───────────────────────────────────────────────────────
 
@@ -170,7 +180,17 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         scale = screenW.toFloat() / 454.0;
         arcStroke = (24.0 * scale).toNumber();
         arcRadius = screenW / 2 - arcStroke / 2;
-        labelRadius = (148.0 * scale).toNumber();
+        labelRadius = (130.0 * scale).toNumber();
+
+        // Time centered on cy. Date sits just above the midpoint of the gap
+        // above the time (bottom edge on the midpoint); weather mirrors it
+        // below (top edge on the midpoint of the gap below the time).
+        timeRenderH = (108.0 * scale).toNumber();
+        rowH = Gfx.getFontHeight(Gfx.FONT_XTINY);
+        timeTop = cy - timeRenderH / 2;
+        var segmentHeight = cy - timeRenderH / 2 - arcStroke;
+        dateY = timeTop - segmentHeight / 2 - rowH;
+        weatherY = timeTop + timeRenderH + segmentHeight / 2;
 
         if (dc has :setAntiAlias) {
             dc.setAntiAlias(true);
@@ -204,7 +224,8 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         drawArcs(dc, comps);
         drawCardinalTicks(dc);
         drawTime(dc);
-        drawDateWeatherRow(dc);
+        drawDate(dc);
+        drawWeather(dc);
         drawArcLabels(dc, comps);
     }
 
@@ -275,27 +296,26 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             var endD = arcEnds[i];
             var color = colors[i];
             var reading = ArchesLogic.slotReading(comps[i]);
-            var value = reading[0];
-            var maxV = reading[1];
-
-            var fillEnd = startD + ((endD - startD) * value) / maxV;
-            if (fillEnd < startD) {
-                fillEnd = startD;
-            }
-            if (fillEnd > endD) {
-                fillEnd = endD;
-            }
+            var fillEnd = ArchesLogic.arcFillEnd(
+                startD,
+                endD,
+                reading[0],
+                reading[1]
+            );
 
             dc.setColor(COLOR_TRACK, Gfx.COLOR_TRANSPARENT);
             drawThickDesignArc(dc, arcRadius, arcStroke, startD, endD);
             drawArcCap(dc, startD);
             drawArcCap(dc, endD);
 
+            dc.setColor(color, Gfx.COLOR_TRANSPARENT);
             if (fillEnd > startD) {
-                dc.setColor(color, Gfx.COLOR_TRANSPARENT);
                 drawThickDesignArc(dc, arcRadius, arcStroke, startD, fillEnd);
                 drawArcCap(dc, startD);
                 drawArcCap(dc, fillEnd);
+            } else {
+                // Empty / no data: still show the accent-colored start dot.
+                drawArcCap(dc, startD);
             }
         }
     }
@@ -411,7 +431,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         }
         var bmps = _digitBmps;
 
-        var renderH = (108.0 * scale).toNumber();
+        var renderH = timeRenderH;
         var renderScale = renderH / 90.0;
         var dwFull = (60.0 * renderScale).toNumber();
         var dwColon = (dwFull * 0.55).toNumber(); // colon glyph is narrower
@@ -420,7 +440,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         var widths = [dwFull, dwFull, dwColon, dwFull, dwFull];
         var totalW = dwFull * 4 + dwColon + kern * 4;
         var x = cx - totalW / 2;
-        var y = cy - renderH / 2;
+        var y = timeTop;
 
         for (var i = 0; i < 5; i++) {
             if (bmps[i] != null) {
@@ -460,81 +480,74 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         }
     }
 
-    // ── Date + weather row ────────────────────────────────────────────────────
+    // ── Date (above the time) and weather (below the time) ────────────────
 
-    function drawDateWeatherRow(dc) {
+    function drawDate(dc) {
         var info = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
-        var dateStr = Lang.format("$1$ $2$", [info.month.toUpper(), info.day]);
-        // 12-hour mode: AM/PM goes in the date row ("NOV 5 · PM").
-        if (!System.getDeviceSettings().is24Hour) {
-            dateStr +=
-                " · " + ArchesLogic.ampmLabel(System.getClockTime().hour);
-        }
-
-        var timeRenderH = (108.0 * scale).toNumber();
-        var segmentHeight = cy - timeRenderH / 2 - arcStroke;
-
+        var is24Hour = System.getDeviceSettings().is24Hour;
+        var dateStr = ArchesLogic.dateRowText(
+            info.day_of_week,
+            info.month,
+            info.day,
+            is24Hour ? null : ArchesLogic.ampmLabel(System.getClockTime().hour)
+        );
         dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
+        dc.drawText(cx, dateY, Gfx.FONT_XTINY, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
+    }
 
-        // Date — text sits just above the midpoint of the gap above the time
-        // block (its bottom edge on the midpoint), mirroring the weather row
-        var font = Gfx.FONT_SYSTEM_XTINY;
-        var fontH = Gfx.getFontHeight(font);
-        var dateY = cy - timeRenderH / 2 - segmentHeight / 2 - fontH;
-        dc.drawText(cx, dateY, font, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
-
-        // Temperature + icon — top edge on the midpoint of the gap below the time block
-        var temp = readTemp();
-        if (temp != null) {
-            font = Gfx.FONT_XTINY;
-            fontH = Gfx.getFontHeight(font);
-            var iconSize = fontH;
-            var gap = (4 * scale).toNumber();
-            var iconRes = readWeatherIcon();
-            var tempStr = temp.toString() + "°";
-            var tempW = dc.getTextWidthInPixels(tempStr, font);
-            var weatherY = cy + timeRenderH / 2 + segmentHeight / 2;
-
-            var totalW = tempW;
-            if (iconRes != null) {
-                totalW += iconSize + gap;
-            }
-            var x = cx - totalW / 2;
-
-            if (iconRes != null) {
-                if (iconRes != _weatherIconRes) {
-                    _weatherBmp = WatchUi.loadResource(iconRes);
-                    _weatherIconRes = iconRes;
-                }
-                drawScaledBitmap(dc, _weatherBmp, x, weatherY, iconSize, iconSize);
-                x += iconSize + gap;
-            }
-            dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
+    function drawWeather(dc) {
+        var tempStr = ArchesLogic.tempText(readTemp());
+        if (tempStr == null) {
+            return;
         }
+        var font = Gfx.FONT_XTINY;
+        var iconSize = rowH;
+        var gap = (4 * scale).toNumber();
+        var iconRes = readWeatherIcon();
+        var tempW = dc.getTextWidthInPixels(tempStr, font);
+
+        var totalW = tempW;
+        if (iconRes != null) {
+            totalW += iconSize + gap;
+        }
+        var x = cx - totalW / 2;
+
+        if (iconRes != null) {
+            if (iconRes != _weatherIconRes) {
+                _weatherBmp = WatchUi.loadResource(iconRes);
+                _weatherIconRes = iconRes;
+            }
+            drawScaledBitmap(dc, _weatherBmp, x, weatherY, iconSize, iconSize);
+            x += iconSize + gap;
+        }
+        dc.setColor(COLOR_TEXT, Gfx.COLOR_TRANSPARENT);
+        dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
     }
 
     // ── Arc value labels ──────────────────────────────────────────────────────
 
-    // Each slot shows a flat icon (pre-tinted to the arc accent color) next
-    // to the value, centered on the arc's mid-angle.
+    // Each slot shows a full-color icon in front of the value (accent color),
+    // centered on the arc's mid-angle.
     function drawArcLabels(
         dc as Gfx.Dc,
         comps as Lang.Array<Complications.Complication?>
     ) as Void {
-        var colors = [COLOR_ARC_0, COLOR_ARC_1, COLOR_ARC_2, COLOR_ARC_3];
         var icons = [
             Rez.Drawables.IconStress,
             Rez.Drawables.IconKcal,
             Rez.Drawables.IconBody,
             Rez.Drawables.IconHR,
         ];
+        var colors = [COLOR_ARC_0, COLOR_ARC_1, COLOR_ARC_2, COLOR_ARC_3];
         var midAngles = [45, 135, 225, 315];
         var aboveCenter = [true, false, false, true];
 
-        var timeRenderH = (108.0 * scale).toNumber();
-        var valFont = Gfx.FONT_SYSTEM_XTINY;
+        var valFont = Gfx.FONT_TINY;
         var valFontH = Gfx.getFontHeight(valFont);
-        var pad = (14 * scale).toNumber();
+        // Icon about as tall as the numerals' visible height.
+        var iconSize = (valFontH * 0.8).toNumber();
+        var iconGap = (6 * scale).toNumber();
+        var pad = (10 * scale).toNumber();
 
         // AMOLED wear protection: drift the labels vertically by -2..+2 px on
         // a 5-minute cycle so their pixels don't accumulate wear in one spot.
@@ -551,46 +564,34 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         }
 
         for (var i = 0; i < 4; i++) {
-            var comp = comps[i];
-            var color = colors[i];
-            var midDeg = midAngles[i];
             var above = aboveCenter[i];
 
-            var val = ArchesLogic.slotValue(comp);
+            var val = ArchesLogic.slotValue(comps[i]);
             var valStr = val == null ? "--" : val.format("%d");
-            var lx = polar(cx, cy, labelRadius, midDeg)[0];
-            // anchor = edge of the label block closest to the time display
-            var anchor = cy + (above ? -1 : 1) * (timeRenderH / 2 + pad);
+            var lx = polar(cx, cy, labelRadius, midAngles[i])[0];
 
+            // Row edge closest to the time display: top labels end above
+            // the time, bottom labels start below it.
             var valY;
             if (above) {
-                // block sits above anchor: value at bottom, label above it
-                valY = anchor - valFontH;
+                valY = timeTop - pad - valFontH - drift;
             } else {
-                // block sits below anchor: value at top, label below it
-                valY = anchor;
+                valY = timeTop + timeRenderH + pad + drift;
             }
-            valY += above ? -drift : drift;
 
-            // Icons are flat silhouettes pre-tinted to the arc accent color,
-            // sized to roughly the numerals' cap height so the value stays
-            // the dominant element.
-            var iconSize = (20.0 * scale).toNumber();
-            var iconGap = (6 * scale).toNumber();
-            var bmp = _iconBmps[i];
+            // Icon + gap + value, centered on lx.
             var textW = dc.getTextWidthInPixels(valStr, valFont);
-            var totalW = iconSize + iconGap + textW;
-            var startX = lx - totalW / 2;
+            var startX = lx - (iconSize + iconGap + textW) / 2;
 
-            dc.setColor(color, Gfx.COLOR_TRANSPARENT);
             drawScaledBitmap(
                 dc,
-                bmp,
+                _iconBmps[i],
                 startX,
                 valY + (valFontH - iconSize) / 2,
                 iconSize,
                 iconSize
             );
+            dc.setColor(colors[i], Gfx.COLOR_TRANSPARENT);
             dc.drawText(
                 startX + iconSize + iconGap,
                 valY,

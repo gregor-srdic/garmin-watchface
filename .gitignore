@@ -25,3 +25,4 @@ bin/optimized/
 *.der
 *.pem
 *.iq
+.agent-runs/
