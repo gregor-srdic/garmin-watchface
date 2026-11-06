@@ -19,8 +19,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
 
     private const COLOR_BG = 0x000000;
     private const COLOR_TRACK = 0x1e1e1e;
-    private const COLOR_DIM = 0x8a8a8a;
-    private const COLOR_TEXT = 0xcccccc; // temperature below the time
+    private const COLOR_TEXT = 0xcccccc; // date line and info row (temperature, battery)
     private const COLOR_DIVIDER = 0x444444;
     private const COLOR_LOW = 0xff4d4d; // low battery; reuses the heart-rate accent
 
@@ -505,7 +504,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             info.day,
             is24Hour ? null : ArchesLogic.ampmLabel(System.getClockTime().hour)
         );
-        dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
+        dc.setColor(COLOR_TEXT, Gfx.COLOR_TRANSPARENT);
         dc.drawText(cx, dateY, Gfx.FONT_XTINY, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
         var dateW = dc.getTextWidthInPixels(dateStr, Gfx.FONT_XTINY);
         _dateRect = [cx - dateW / 2, dateY, cx - dateW / 2 + dateW, dateY + rowH];

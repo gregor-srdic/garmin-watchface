@@ -100,7 +100,7 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 | `drawThickDesignArc()` | Single drawArc pass; strokes above `SPLIT_THRESHOLD` fall back to two overlapping passes (firmware seam workaround) |
 | `drawCardinalTicks()` | Short divider ticks at the four arc gaps |
 | `drawTime()` | Renders five gradient bitmap images (h1, h2, colon, m1, m2), vertically centered on screen. Bitmaps are cached and reload only when the minute changes |
-| `drawDate()` | Date line above the time, built with `ArchesLogic.dateRowText()`, in dim gray |
+| `drawDate()` | Date line above the time, built with `ArchesLogic.dateRowText()`, in the same light gray and font as the info row |
 | `drawInfoRow()` | Single row below the time: weather icon + temperature (`ArchesLogic.tempText()`, light gray) + `" · "` + battery icon + percentage. The battery icon and percentage are red at 15% or less unless charging, and the bolt icon is used while charging |
 | `slotAtPoint()` / `compIdForSlot()` | Hit-test a touch point against the four arcs and map the slot to its complication ID (via `ArchesLogic`) |
 | `isLowPower()` | Exposes the low-power flag so touch handling is ignored in always-on mode |
