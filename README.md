@@ -9,7 +9,8 @@ A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix
   - bottom-right (rose) — calories
 - **Time** in the device's 12/24-hour format, displayed as bitmap digits with a continuous pink → purple → blue gradient
 - **Date** above the time: `<DOW> · <MON> <D> [· AM/PM]` (e.g. `TUE · APR 28 · PM`)
-- **Weather** below the time: `<icon> <temp>°` (e.g. `⛅ 18°`). Omitted when unavailable; clear skies show a moon after sunset
+- **Weather and battery** below the time: `<icon> <temp>° · <battery icon> <pct>%` (e.g. `⛅ 18° · 🔋 82%`). The weather part is omitted when unavailable; clear skies show a moon after sunset. The battery icon turns red at 15% or less unless charging, and shows a lightning bolt while charging
+- **Touch-and-hold an arc** to open its native Garmin view (heart rate, stress, body battery, calories). Watch faces can't receive a plain tap, so it is a hold; holding anywhere else keeps the system hold behaviour. Whether a native view exists for a metric is device-dependent
 - **Always-on (low power) mode** with AMOLED burn-in protection
 
 ## Screenshots
@@ -29,17 +30,20 @@ monkeyc/
   source/
     ArchesWatchFaceApp.mc         AppBase entry point
     ArchesWatchFaceView.mc        All rendering logic
-    ArchesLogic.mc                Pure helpers (slot values, 12/24h, temperature, date row text, arc fill end)
+    ArchesWatchFaceDelegate.mc    Touch-and-hold handling: opens the native view of the arc under the finger
+    ArchesLogic.mc                Pure helpers (slot values, 12/24h, temperature, battery percent/text/low threshold, date row text, arc fill end, hit-testing)
   test/
     ArchesLogicTest.mc            Unit tests for ArchesLogic
   resources/
     strings/strings.xml           App name ("Arches")
-    drawables/drawables.xml       56 bitmap registrations
+    drawables/drawables.xml       60 bitmap registrations
     images/
       launcher_icon.png           65×65 launcher icon (default size)
       hr.png, stress.png,
         body.png, calories.png    Arc metric icons (flat, full accent color per slot)
       weather_*.png               11 weather condition icons (incl. night moon)
+      battery.png, battery_low.png,
+        battery_charging.png      Battery icons (normal, red low, charging bolt)
       h1_0..h1_9.png              Hours tens digit
       h2_0..h2_9.png              Hours units digit
       colon_colon.png             Colon separator
@@ -50,6 +54,7 @@ monkeyc/
                                   Native 60×60 / 70×70 launcher icons (see monkey.jungle)
   tools/
     gen_arc_icons.py              Regenerates the arc metric icons at full accent colors
+    gen_battery_icons.py          Draws the three battery icons (normal, low, charging)
     gen_digit_gradient.py         Regenerates the 41 digit PNGs with the gradient (--check verifies vs HEAD alpha)
     gen_launcher_icon.py          Draws the launcher icon at a given size
     gen_moon_icon.py              Draws the night (moon) weather icon
@@ -95,10 +100,16 @@ All drawing is done in a single `WatchFace` subclass. Key sections:
 | `drawThickDesignArc()` | Single drawArc pass; strokes above `SPLIT_THRESHOLD` fall back to two overlapping passes (firmware seam workaround) |
 | `drawCardinalTicks()` | Short divider ticks at the four arc gaps |
 | `drawTime()` | Renders five gradient bitmap images (h1, h2, colon, m1, m2), vertically centered on screen. Bitmaps are cached and reload only when the minute changes |
-| `drawDate()` | Date line above the time, built with `ArchesLogic.dateRowText()`, in dim gray |
-| `drawWeather()` | Weather icon (unmodified) + temperature (`ArchesLogic.tempText()`, light gray) below the time |
+| `drawDate()` | Date line above the time, built with `ArchesLogic.dateRowText()`, in the same light gray and font as the info row |
+| `drawInfoRow()` | Single row below the time: weather icon + temperature (`ArchesLogic.tempText()`, light gray) + `" · "` + battery icon + percentage. The battery icon and percentage are red at 15% or less unless charging, and the bolt icon is used while charging |
+| `slotAtPoint()` / `compIdForSlot()` | Hit-test a touch point against the four arcs and map the slot to its complication ID (via `ArchesLogic`) |
+| `isLowPower()` | Exposes the low-power flag so touch handling is ignored in always-on mode |
 | `drawArcLabels()` | Per slot: full-color icon (about 80% of the value font height) in front of the value (`FONT_TINY`, accent color) |
 | `drawLowPower()` | Minimal always-on rendering (see below) |
+
+### ArchesWatchFaceDelegate.mc
+
+A `WatchFaceDelegate` that handles `onPress()`. Watch faces only receive a touch-and-hold, not a plain tap. The press is hit-tested against the arcs with `slotAtPoint()`; on a hit it calls `Complications.exitTo()` with that slot's complication ID to open the native view. On a miss (or in low-power mode) it returns `false`, so the system hold menu still works.
 
 ### Always-on mode & AMOLED burn-in protection
 

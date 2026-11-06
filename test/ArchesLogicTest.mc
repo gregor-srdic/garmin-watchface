@@ -197,3 +197,131 @@ function arcFillEndZeroMax(logger as Test.Logger) as Lang.Boolean {
     Test.assertEqual(ArchesLogic.arcFillEnd(5, 85, 10, 0), 5);
     return true;
 }
+
+// --- Battery percentage / text / low state ---
+(:test)
+function batteryPercentRoundsDown(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.batteryPercent(78.4), 78);
+    return true;
+}
+
+(:test)
+function batteryPercentRoundsUp(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.batteryPercent(78.5), 79);
+    return true;
+}
+
+(:test)
+function batteryPercentClampsNegative(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.batteryPercent(-1.0), 0);
+    return true;
+}
+
+(:test)
+function batteryPercentClampsOver100(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.batteryPercent(100.6), 100);
+    return true;
+}
+
+(:test)
+function batteryTextAppendsPercent(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.batteryText(78), "78%");
+    return true;
+}
+
+(:test)
+function batteryTextBounds(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.batteryText(0), "0%");
+    Test.assertEqual(ArchesLogic.batteryText(100), "100%");
+    return true;
+}
+
+(:test)
+function isBatteryLowAtThreshold(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(ArchesLogic.isBatteryLow(15, false));
+    return true;
+}
+
+(:test)
+function isBatteryLowAboveThreshold(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(!ArchesLogic.isBatteryLow(16, false));
+    return true;
+}
+
+(:test)
+function isBatteryLowIgnoredWhileCharging(logger as Test.Logger) as Lang.Boolean {
+    Test.assert(!ArchesLogic.isBatteryLow(10, true));
+    return true;
+}
+
+// --- Touch-and-hold hit testing (centre 227,227) ---
+// Exclusions: time-block-like and date/info-row-like rects [left, top, right, bottom].
+(:test)
+function slotAtTopRightIsSlot0(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.slotAt(350, 100, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]), 0);
+    return true;
+}
+
+(:test)
+function slotAtBottomRightIsSlot1(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.slotAt(350, 350, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]), 1);
+    return true;
+}
+
+(:test)
+function slotAtBottomLeftIsSlot2(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.slotAt(100, 350, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]), 2);
+    return true;
+}
+
+(:test)
+function slotAtTopLeftIsSlot3(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.slotAt(100, 100, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]), 3);
+    return true;
+}
+
+(:test)
+function slotAtInsideTimeBlockIsNull(logger as Test.Logger) as Lang.Boolean {
+    var r = ArchesLogic.slotAt(227, 227, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]);
+    Test.assert(r == null);
+    return true;
+}
+
+(:test)
+function slotAtInsideRowIsNull(logger as Test.Logger) as Lang.Boolean {
+    var r = ArchesLogic.slotAt(200, 130, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]);
+    Test.assert(r == null);
+    return true;
+}
+
+(:test)
+function slotAtExclusionEdgesAreInclusive(logger as Test.Logger) as Lang.Boolean {
+    var ex = [[150, 173, 304, 281]];
+    Test.assert(ArchesLogic.slotAt(150, 173, 227, 227, ex) == null);
+    Test.assert(ArchesLogic.slotAt(304, 281, 227, 227, ex) == null);
+    return true;
+}
+
+// Arc labels sit outside the exclusions and belong to their quadrant.
+(:test)
+function slotAtArcLabelPositionResolvesToQuadrant(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.slotAt(320, 160, 227, 227, [[150, 173, 304, 281], [180, 120, 274, 140]]), 0);
+    return true;
+}
+
+(:test)
+function slotAtAxisTieBreaks(logger as Test.Logger) as Lang.Boolean {
+    var ex = [[150, 173, 304, 281], [180, 120, 274, 140]];
+    Test.assertEqual(ArchesLogic.slotAt(227, 100, 227, 227, ex), 0);
+    Test.assertEqual(ArchesLogic.slotAt(100, 227, 227, 227, ex), 2);
+    Test.assertEqual(ArchesLogic.slotAt(350, 227, 227, 227, ex), 1);
+    return true;
+}
+
+(:test)
+function slotAtEmptyExclusions(logger as Test.Logger) as Lang.Boolean {
+    var ex = [] as Lang.Array<Lang.Array<Lang.Number> >;
+    Test.assertEqual(ArchesLogic.slotAt(350, 100, 227, 227, ex), 0);
+    Test.assertEqual(ArchesLogic.slotAt(227, 227, 227, 227, ex), 1);
+    return true;
+}

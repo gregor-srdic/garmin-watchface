@@ -103,6 +103,55 @@ module ArchesLogic {
         return 100; // stress, body battery
     }
 
+    // Battery at or below this percent (and not charging) is shown as low.
+    const BATTERY_LOW_PCT = 15;
+
+    // Battery level as a whole percent, rounded and clamped to 0-100.
+    function batteryPercent(battery as Lang.Float) as Lang.Number {
+        var pct = Math.round(battery).toNumber();
+        if (pct < 0) {
+            return 0;
+        }
+        if (pct > 100) {
+            return 100;
+        }
+        return pct;
+    }
+
+    // "78%".
+    function batteryText(pct as Lang.Number) as Lang.String {
+        return pct + "%";
+    }
+
+    // True at or below the low threshold, unless the watch is charging.
+    function isBatteryLow(pct as Lang.Number, charging as Lang.Boolean) as Lang.Boolean {
+        return pct <= BATTERY_LOW_PCT && !charging;
+    }
+
+    // Arc slot (0 top-right, 1 bottom-right, 2 bottom-left, 3 top-left) for a
+    // touch point, or null when it falls inside an excluded rect
+    // [left, top, right, bottom] (edges inclusive).
+    function slotAt(
+        x as Lang.Number,
+        y as Lang.Number,
+        cx as Lang.Number,
+        cy as Lang.Number,
+        excluded as Lang.Array<Lang.Array<Lang.Number> >
+    ) as Lang.Number? {
+        for (var i = 0; i < excluded.size(); i++) {
+            var r = excluded[i];
+            if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) {
+                return null;
+            }
+        }
+        var dx = x - cx;
+        var dy = y - cy;
+        if (dx >= 0) {
+            return dy < 0 ? 0 : 1;
+        }
+        return dy >= 0 ? 2 : 3;
+    }
+
     // Two-character hour string for the bitmap digits. 12-hour mode keeps the
     // leading zero ("05") because the layout has a fixed four-digit width.
     function hourString(hour as Lang.Number, is24Hour as Lang.Boolean) as Lang.String {
