@@ -19,6 +19,10 @@
     <bitmap id="IconStress" filename="../images/stress.png"/>
     <bitmap id="IconBody" filename="../images/body.png"/>
     <bitmap id="IconKcal" filename="../images/calories.png"/>
+    <!-- Battery icons (tools/gen_battery_icons.py) -->
+    <bitmap id="IconBattery" filename="../images/battery.png"/>
+    <bitmap id="IconBatteryLow" filename="../images/battery_low.png"/>
+    <bitmap id="IconBatteryCharging" filename="../images/battery_charging.png"/>
     <!-- Time digits — one bitmap per (position, glyph) so each is pre-tinted.
          Alpha is the glyph shape; RGB is one continuous horizontal gradient
          pink (0xff8fa3) -> purple (0xb48cff) -> blue (0x6aa8ff) across the whole

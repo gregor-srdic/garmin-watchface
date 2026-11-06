@@ -14,6 +14,7 @@ class ArchesWatchFaceApp extends Application.AppBase {
     }
 
     function getInitialView() {
-        return [ new ArchesWatchFaceView() ];
+        var view = new ArchesWatchFaceView();
+        return [ view, new ArchesWatchFaceDelegate(view) ];
     }
 }

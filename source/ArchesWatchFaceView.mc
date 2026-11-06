@@ -10,8 +10,9 @@ using Toybox.Complications;
 
 // Arches Watch Face — round AMOLED, 454×454
 // Layout: 4 arc gauges around the bezel, bitmap time digits centered on
-// screen, date above the time and weather below it. Each arc has an
-// icon + value label.
+// screen, date above the time and a weather + battery row below it. Each arc
+// has an icon + value label. The drawn rects of the time, date and info row
+// are recorded each active frame so touch-and-hold on them maps to no arc.
 
 class ArchesWatchFaceView extends WatchUi.WatchFace {
     // ── Palette ───────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     private const COLOR_DIM = 0x8a8a8a;
     private const COLOR_TEXT = 0xcccccc; // temperature below the time
     private const COLOR_DIVIDER = 0x444444;
+    private const COLOR_LOW = 0xff4d4d; // low battery; reuses the heart-rate accent
 
     // Arc accent colors — fixed per position, independent of complication type.
     // Full design color in active mode; always-on mode stays dim because
@@ -76,6 +78,15 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
     private var _digitBmps as Lang.Array? = null;
     private var _weatherIconRes = null;
     private var _weatherBmp = null;
+    private var _batteryIconRes = null;
+    private var _batteryBmp = null;
+
+    // Rects [left, top, right, bottom] drawn this frame; _hitExclusions is the
+    // fresh [time, date, info row] array handed to ArchesLogic.slotAt.
+    private var _timeRect as Lang.Array<Lang.Number>? = null;
+    private var _dateRect as Lang.Array<Lang.Number>? = null;
+    private var _infoRect as Lang.Array<Lang.Number>? = null;
+    private var _hitExclusions as Lang.Array<Lang.Array<Lang.Number>>? = null;
 
     // Sunrise/sunset (seconds since epoch) for the weather location, refreshed
     // at most once per hour. Null when unavailable (fixed-hours fallback).
@@ -225,8 +236,10 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         drawCardinalTicks(dc);
         drawTime(dc);
         drawDate(dc);
-        drawWeather(dc);
+        drawInfoRow(dc);
         drawArcLabels(dc, comps);
+        _hitExclusions =
+            [_timeRect, _dateRect, _infoRect] as Lang.Array<Lang.Array<Lang.Number>>;
     }
 
     // ── Always-on (low power) mode ────────────────────────────────────────────
@@ -448,6 +461,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             }
             x += widths[i] + kern;
         }
+        _timeRect = [cx - totalW / 2, timeTop, cx - totalW / 2 + totalW, timeTop + timeRenderH];
     }
 
     // Resolves a digit resource from the cached lookup tables.
@@ -480,7 +494,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         }
     }
 
-    // ── Date (above the time) and weather (below the time) ────────────────
+    // ── Date (above the time) and weather + battery (below the time) ────────────────
 
     function drawDate(dc) {
         var info = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
@@ -493,24 +507,44 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         );
         dc.setColor(COLOR_DIM, Gfx.COLOR_TRANSPARENT);
         dc.drawText(cx, dateY, Gfx.FONT_XTINY, dateStr, Gfx.TEXT_JUSTIFY_CENTER);
+        var dateW = dc.getTextWidthInPixels(dateStr, Gfx.FONT_XTINY);
+        _dateRect = [cx - dateW / 2, dateY, cx - dateW / 2 + dateW, dateY + rowH];
     }
 
-    function drawWeather(dc) {
-        var tempStr = ArchesLogic.tempText(readTemp());
-        if (tempStr == null) {
-            return;
-        }
+    // Row under the time: [weather icon] [temp] " · " [battery icon] [pct].
+    // Without a temperature only the battery icon + percentage are shown.
+    function drawInfoRow(dc) {
+        var stats = System.getSystemStats();
+        var pct = ArchesLogic.batteryPercent(stats.battery);
+        var charging = stats.charging == true;
+        var low = ArchesLogic.isBatteryLow(pct, charging);
+
         var font = Gfx.FONT_XTINY;
         var iconSize = rowH;
         var gap = (4 * scale).toNumber();
-        var iconRes = readWeatherIcon();
-        var tempW = dc.getTextWidthInPixels(tempStr, font);
+        var tempStr = ArchesLogic.tempText(readTemp());
+        var iconRes = tempStr != null ? readWeatherIcon() : null;
+        var batRes = charging
+            ? Rez.Drawables.IconBatteryCharging
+            : low
+              ? Rez.Drawables.IconBatteryLow
+              : Rez.Drawables.IconBattery;
+        var pctStr = ArchesLogic.batteryText(pct);
 
-        var totalW = tempW;
+        var tempW = 0;
+        var sepW = 0;
+        var totalW = 0;
         if (iconRes != null) {
             totalW += iconSize + gap;
         }
-        var x = cx - totalW / 2;
+        if (tempStr != null) {
+            tempW = dc.getTextWidthInPixels(tempStr, font);
+            sepW = dc.getTextWidthInPixels(ArchesLogic.ROW_SEP, font);
+            totalW += tempW + sepW;
+        }
+        totalW += iconSize + gap + dc.getTextWidthInPixels(pctStr, font);
+        var x0 = cx - totalW / 2;
+        var x = x0;
 
         if (iconRes != null) {
             if (iconRes != _weatherIconRes) {
@@ -520,8 +554,52 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
             drawScaledBitmap(dc, _weatherBmp, x, weatherY, iconSize, iconSize);
             x += iconSize + gap;
         }
-        dc.setColor(COLOR_TEXT, Gfx.COLOR_TRANSPARENT);
-        dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
+        if (tempStr != null) {
+            dc.setColor(COLOR_TEXT, Gfx.COLOR_TRANSPARENT);
+            dc.drawText(x, weatherY, font, tempStr, Gfx.TEXT_JUSTIFY_LEFT);
+            x += tempW;
+            dc.drawText(
+                x,
+                weatherY,
+                font,
+                ArchesLogic.ROW_SEP,
+                Gfx.TEXT_JUSTIFY_LEFT
+            );
+            x += sepW;
+        }
+
+        if (batRes != _batteryIconRes) {
+            _batteryBmp = WatchUi.loadResource(batRes);
+            _batteryIconRes = batRes;
+        }
+        drawScaledBitmap(dc, _batteryBmp, x, weatherY, iconSize, iconSize);
+        x += iconSize + gap;
+        dc.setColor(low ? COLOR_LOW : COLOR_TEXT, Gfx.COLOR_TRANSPARENT);
+        dc.drawText(x, weatherY, font, pctStr, Gfx.TEXT_JUSTIFY_LEFT);
+
+        _infoRect = [x0, weatherY, x0 + totalW, weatherY + rowH];
+    }
+
+    // ── Touch hit-testing (used by ArchesWatchFaceDelegate) ───────────────────
+
+    // Arc slot (0..3) under a screen point, or null on the time/date/info row
+    // or before the first active frame has been drawn.
+    function slotAtPoint(x as Lang.Number, y as Lang.Number) as Lang.Number? {
+        if (cx == null || _hitExclusions == null) {
+            return null;
+        }
+        return ArchesLogic.slotAt(x, y, cx, cy, _hitExclusions);
+    }
+
+    function compIdForSlot(i as Lang.Number) as Complications.Id? {
+        if (_compIds == null || i < 0 || i > 3) {
+            return null;
+        }
+        return _compIds[i];
+    }
+
+    function isLowPower() as Lang.Boolean {
+        return _inLowPower;
     }
 
     // ── Arc value labels ──────────────────────────────────────────────────────
