@@ -499,7 +499,7 @@ class ArchesWatchFaceView extends WatchUi.WatchFace {
         var info = Gregorian.info(Time.now(), Time.FORMAT_MEDIUM);
         var is24Hour = System.getDeviceSettings().is24Hour;
         var dateStr = ArchesLogic.dateRowText(
-            info.day_of_week,
+            ArchesLogic.SHOW_DAY_OF_WEEK ? info.day_of_week : null,
             info.month,
             info.day,
             is24Hour ? null : ArchesLogic.ampmLabel(System.getClockTime().hour)

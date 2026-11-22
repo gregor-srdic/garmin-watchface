@@ -1,8 +1,55 @@
 project.manifest = manifest.xml
 base.sourcePath = source;test
 
-# Native launcher icon sizes (the default 65x65 is rescaled, and blurred, elsewhere).
+# Day of week on the date line (ArchesLogic.SHOW_DAY_OF_WEEK): on by default,
+# off on the Venu 4 41mm and 45mm.
+base.excludeAnnotations = compactDate
+venu441mm.excludeAnnotations = fullDate
+venu445mm.excludeAnnotations = fullDate
+
+# Extra resource folders per device, appended to the defaults:
+#   resources-iconNN    native NNxNN launcher icon (the default 65x65 is rescaled,
+#                       and blurred, elsewhere)
+#   resources-lowgfx-*  digits and icons pre-scaled and flattened on black, for
+#                       devices without enhanced graphics (no drawScaledBitmap,
+#                       on/off alpha). tools/gen_lowgfx_resources.py, run as:
+#                         fr165 390 35 30 | vivoactive5 390 41 32
+#                         instinct3amoled45mm 390 33 26 | instinct3amoled50mm 416 36 28
+#                         approachs50 390 39 29 (also used by descentg2)
+venu441mm.resourcePath = $(venu441mm.resourcePath);resources-icon54
+vivoactive6.resourcePath = $(vivoactive6.resourcePath);resources-icon54
+fr165.resourcePath = $(fr165.resourcePath);resources-icon54;resources-lowgfx-fr165
+fr165m.resourcePath = $(fr165m.resourcePath);resources-icon54;resources-lowgfx-fr165
+fr170.resourcePath = $(fr170.resourcePath);resources-icon54
+fr170m.resourcePath = $(fr170m.resourcePath);resources-icon54
+fr70.resourcePath = $(fr70.resourcePath);resources-icon54;resources-lowgfx-fr165
+fr57042mm.resourcePath = $(fr57042mm.resourcePath);resources-icon54
+vivoactive5.resourcePath = $(vivoactive5.resourcePath);resources-icon56;resources-lowgfx-vivoactive5
 epix2pro51mm.resourcePath = $(epix2pro51mm.resourcePath);resources-icon60
 descentmk351mm.resourcePath = $(descentmk351mm.resourcePath);resources-icon60
+fenix843mm.resourcePath = $(fenix843mm.resourcePath);resources-icon60
+fenix943mm.resourcePath = $(fenix943mm.resourcePath);resources-icon60
+fenix9pro43mm.resourcePath = $(fenix9pro43mm.resourcePath);resources-icon60
+fenixe.resourcePath = $(fenixe.resourcePath);resources-icon60
+epix2.resourcePath = $(epix2.resourcePath);resources-icon60
+epix2pro47mm.resourcePath = $(epix2pro47mm.resourcePath);resources-icon60
+d2mach1.resourcePath = $(d2mach1.resourcePath);resources-icon60
+fr265.resourcePath = $(fr265.resourcePath);resources-icon60
+instinct3amoled50mm.resourcePath = $(instinct3amoled50mm.resourcePath);resources-icon60;resources-lowgfx-instinct3amoled50mm
+epix2pro42mm.resourcePath = $(epix2pro42mm.resourcePath);resources-icon60
+marq2.resourcePath = $(marq2.resourcePath);resources-icon60
+marq2aviator.resourcePath = $(marq2aviator.resourcePath);resources-icon60
+instinct3amoled45mm.resourcePath = $(instinct3amoled45mm.resourcePath);resources-icon60;resources-lowgfx-instinct3amoled45mm
+fr265s.resourcePath = $(fr265s.resourcePath);resources-icon60
 venu3.resourcePath = $(venu3.resourcePath);resources-icon70
 approachs7047mm.resourcePath = $(approachs7047mm.resourcePath);resources-icon70
+venu3s.resourcePath = $(venu3s.resourcePath);resources-icon70
+venu2.resourcePath = $(venu2.resourcePath);resources-icon70
+venu2plus.resourcePath = $(venu2plus.resourcePath);resources-icon70
+d2airx10.resourcePath = $(d2airx10.resourcePath);resources-icon70
+venu2s.resourcePath = $(venu2s.resourcePath);resources-icon61
+approachs50.resourcePath = $(approachs50.resourcePath);resources-icon56;resources-lowgfx-approachs50
+descentg2.resourcePath = $(descentg2.resourcePath);resources-icon60;resources-lowgfx-approachs50
+approachs7042mm.resourcePath = $(approachs7042mm.resourcePath);resources-icon60
+approachs7243mm.resourcePath = $(approachs7243mm.resourcePath);resources-icon60
+descentmk343mm.resourcePath = $(descentmk343mm.resourcePath);resources-icon60

@@ -1,11 +1,12 @@
 <?xml version="1.0"?>
 <iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
     <iq:application entry="ArchesWatchFaceApp" id="2292a6d47c88ed43b0b5c2bc92aae540" launcherIcon="@Drawables.LauncherIcon" minApiLevel="4.2.0" name="@Strings.AppName" type="watchface">
-        <!-- Devices that ship with a 454x454 round AMOLED display.
-             The layout is resolution-independent (scales off screen width), so
-             every device in this family renders without code changes. Product
-             IDs verified against the SDK 9.1.0 device-reference catalog. -->
+        <!-- Round AMOLED devices, grouped by screen size. The layout is
+             resolution-independent (scales off screen width). Product IDs match
+             the SDK device profiles. MIP watches are left out on purpose: see
+             docs/changes/2026-11-22-more-devices/plan.md. -->
         <iq:products>
+            <!-- 454x454 -->
             <iq:product id="fr965"/>
             <iq:product id="fr970"/>
             <iq:product id="fr57047mm"/>
@@ -13,10 +14,53 @@
             <iq:product id="venu445mm"/>
             <iq:product id="fenix847mm"/>
             <iq:product id="fenix8pro47mm"/>
+            <iq:product id="fenix947mm"/>
+            <iq:product id="fenix9pro47mm"/>
             <iq:product id="epix2pro51mm"/>
             <iq:product id="d2mach2"/>
+            <iq:product id="d2mach2pro"/>
             <iq:product id="descentmk351mm"/>
             <iq:product id="approachs7047mm"/>
+            <iq:product id="approachs7247mm"/>
+            <iq:product id="marq3"/>
+            <!-- 466x466 -->
+            <iq:product id="fenix9pro51mm"/>
+            <!-- 416x416 -->
+            <iq:product id="fenix843mm"/>
+            <iq:product id="fenix943mm"/>
+            <iq:product id="fenix9pro43mm"/>
+            <iq:product id="fenixe"/>
+            <iq:product id="epix2"/>
+            <iq:product id="epix2pro47mm"/>
+            <iq:product id="d2mach1"/>
+            <iq:product id="fr265"/>
+            <iq:product id="instinct3amoled50mm"/>
+            <iq:product id="venu2"/>
+            <iq:product id="venu2plus"/>
+            <iq:product id="approachs7243mm"/>
+            <iq:product id="d2airx10"/>
+            <!-- 390x390 -->
+            <iq:product id="venu441mm"/>
+            <iq:product id="venu3s"/>
+            <iq:product id="vivoactive5"/>
+            <iq:product id="vivoactive6"/>
+            <iq:product id="fr165"/>
+            <iq:product id="fr165m"/>
+            <iq:product id="fr170"/>
+            <iq:product id="fr170m"/>
+            <iq:product id="fr70"/>
+            <iq:product id="fr57042mm"/>
+            <iq:product id="epix2pro42mm"/>
+            <iq:product id="marq2"/>
+            <iq:product id="marq2aviator"/>
+            <iq:product id="instinct3amoled45mm"/>
+            <iq:product id="approachs7042mm"/>
+            <iq:product id="descentmk343mm"/>
+            <iq:product id="approachs50"/>
+            <iq:product id="descentg2"/>
+            <!-- 360x360 -->
+            <iq:product id="fr265s"/>
+            <iq:product id="venu2s"/>
         </iq:products>
         <!-- Permissions required for HR + Body Battery + Stress + Weather -->
         <iq:permissions>
