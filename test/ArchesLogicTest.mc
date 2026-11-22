@@ -126,8 +126,8 @@ function dateRowText24h(logger as Test.Logger) as Lang.Boolean {
 }
 
 (:test)
-function dateRowText12h(logger as Test.Logger) as Lang.Boolean {
-    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 27, "PM"), "MON · APR 27 · PM");
+function dateRowText12hDropsDayOfWeek(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 27, "PM"), "APR 27 · PM");
     return true;
 }
 
@@ -139,7 +139,19 @@ function dateRowTextUpperCasesInput(logger as Test.Logger) as Lang.Boolean {
 
 (:test)
 function dateRowTextSingleDigitDay(logger as Test.Logger) as Lang.Boolean {
-    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 7, "PM"), "MON · APR 7 · PM");
+    Test.assertEqual(ArchesLogic.dateRowText("Mon", "Apr", 7, "PM"), "APR 7 · PM");
+    return true;
+}
+
+(:test)
+function dateRowTextWithoutDayOfWeek(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText(null, "Apr", 27, null), "APR 27");
+    return true;
+}
+
+(:test)
+function dateRowTextWithoutDayOfWeek12h(logger as Test.Logger) as Lang.Boolean {
+    Test.assertEqual(ArchesLogic.dateRowText(null, "Apr", 27, "PM"), "APR 27 · PM");
     return true;
 }
 

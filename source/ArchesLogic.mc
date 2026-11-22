@@ -10,14 +10,27 @@ module ArchesLogic {
     // Separator between the parts of the date line.
     const ROW_SEP = " · ";
 
-    // "MON · APR 27", plus " · PM" in 12-hour mode.
+    // Whether the date line leads with the day of the week. Chosen per device
+    // at build time via excludeAnnotations in monkey.jungle: the Venu 4 41mm
+    // and 45mm build with :compactDate and show "NOV 22 · AM" instead.
+    (:fullDate)
+    const SHOW_DAY_OF_WEEK = true;
+    (:compactDate)
+    const SHOW_DAY_OF_WEEK = false;
+
+    // 24-hour mode: "MON · APR 27" ("APR 27" when dow is null).
+    // 12-hour mode: "APR 27 · PM". The day of the week is always dropped there,
+    // since the full "MON · APR 27 · PM" runs into the arcs.
     function dateRowText(
-        dow as Lang.String,
+        dow as Lang.String?,
         month as Lang.String,
         day as Lang.Number,
         ampm as Lang.String?
     ) as Lang.String {
-        var s = dow.toUpper() + ROW_SEP + month.toUpper() + " " + day;
+        var s = month.toUpper() + " " + day;
+        if (dow != null && ampm == null) {
+            s = dow.toUpper() + ROW_SEP + s;
+        }
         if (ampm != null) {
             s = s + ROW_SEP + ampm;
         }

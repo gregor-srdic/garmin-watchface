@@ -1,6 +1,6 @@
 # Arches Watch Face — Connect IQ (Monkey C)
 
-A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix 8, Epix Pro, Venu 3/4 and others — see `manifest.xml`):
+A round AMOLED watch face for 50 Garmin watches from 360 to 466 px (Forerunner 165/265/570/965/970, fēnix 8/9, epix, Venu 2/3/4, vívoactive 5/6, Instinct 3 AMOLED, MARQ, Approach, Descent and others; see `manifest.xml`):
 
 - **4 arc gauges** around the bezel, each showing a fixed metric as an icon in front of its value. A metric at zero or with no data shows a start dot in its accent color
   - top-left (red) — heart rate
@@ -8,7 +8,7 @@ A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix
   - bottom-left (blue) — body battery
   - bottom-right (rose) — calories
 - **Time** in the device's 12/24-hour format, displayed as bitmap digits with a continuous pink → purple → blue gradient
-- **Date** above the time: `<DOW> · <MON> <D> [· AM/PM]` (e.g. `TUE · APR 28 · PM`)
+- **Date** above the time: `<DOW> · <MON> <D>` in 24-hour mode (e.g. `TUE · APR 28`), `<MON> <D> · <AM/PM>` in 12-hour mode (e.g. `APR 28 · PM`; the day is dropped so the line stays clear of the arcs). The Venu 4 41mm and 45mm never show the day (set per device in `monkey.jungle`)
 - **Weather and battery** below the time: `<icon> <temp>° · <battery icon> <pct>%` (e.g. `⛅ 18° · 🔋 82%`). The weather part is omitted when unavailable; clear skies show a moon after sunset. The battery icon turns red at 15% or less unless charging, and shows a lightning bolt while charging
 - **Touch-and-hold an arc** to open its native Garmin view (heart rate, stress, body battery, calories). Watch faces can't receive a plain tap, so it is a hold; holding anywhere else keeps the system hold behaviour. Whether a native view exists for a metric is device-dependent
 - **Always-on (low power) mode** with AMOLED burn-in protection
@@ -25,7 +25,7 @@ A 454×454 round AMOLED watch face for Garmin watches (Forerunner 965/970, Fenix
 
 ```
 monkeyc/
-  manifest.xml                    Connect IQ app manifest (11 round 454×454 AMOLED devices, minApi 4.2.0)
+  manifest.xml                    Connect IQ app manifest (50 round AMOLED devices, 360–466 px, grouped by screen size; minApi 4.2.0)
   monkey.jungle                   Build config (source + test paths)
   source/
     ArchesWatchFaceApp.mc         AppBase entry point
@@ -50,13 +50,18 @@ monkeyc/
       m1_0..m1_9.png              Minutes tens digit
       m2_0..m2_9.png              Minutes units digit
                                   (digit PNGs carry one continuous horizontal gradient across HH:MM)
-  resources-icon60/, resources-icon70/
-                                  Native 60×60 / 70×70 launcher icons (see monkey.jungle)
+  resources-icon54/, -icon56/, -icon60/, -icon61/, -icon70/
+                                  Native launcher icons per device size (see monkey.jungle)
+  resources-lowgfx-*/             Digits and icons pre-scaled and flattened on black for
+                                  watches without enhanced graphics (FR165/165M, FR70,
+                                  vívoactive 5, Instinct 3 AMOLED,
+                                  Approach S50, Descent G2)
   tools/
     gen_arc_icons.py              Regenerates the arc metric icons at full accent colors
     gen_battery_icons.py          Draws the three battery icons (normal, low, charging)
     gen_digit_gradient.py         Regenerates the 41 digit PNGs with the gradient (--check verifies vs HEAD alpha)
     gen_launcher_icon.py          Draws the launcher icon at a given size
+    gen_lowgfx_resources.py       Builds a resources-lowgfx-* folder (rerun after digit/icon changes)
     gen_moon_icon.py              Draws the night (moon) weather icon
 ```
 
